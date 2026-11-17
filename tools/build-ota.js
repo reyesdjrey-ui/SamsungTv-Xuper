@@ -31,9 +31,42 @@ if (fs.existsSync(manifestPath)) {
 }
 
 const rev = Number(getArg('--rev') || (prevRev + 1));
+const minBaseRev = Number(getArg('--min-base-rev') || 1);
 const version = getArg('--version') || ('3.0.0-ota' + rev);
 const notes = getArg('--notes') || ('Actualizacion OTA rev ' + rev);
 const includeStores = args.includes('--include-stores');
+
+const orderedScripts = [
+  'core/net/xe-env.js',
+  'core/net/xe-cipher.js',
+  'core/net/xe-relay.js',
+  'core/net/xe-net.js',
+  'core/net/xe-identity.js',
+  'core/net/xe-auth.js',
+  'core/net/xe-repository.js',
+  'core/net/xe-broadcast.js',
+  'core/net/xe-digest.js',
+  'core/net/xe-manifest.js',
+  'core/media/xe-system-scanner.js',
+  'core/media/xe-gateway.js',
+  'core/media/xe-byte-buffer.js',
+  'core/media/xe-audio-clock.js',
+  'core/media/xe-isobmff-mux.js',
+  'core/media/xe-track-mgr.js',
+  'core/media/xe-hevc-engine.js',
+  'core/media/xe-mp4-engine.js',
+  'core/media/xe-vod-engine.js',
+  'core/media/xe-tizen-av.js',
+  'core/media/xe-live-engine.js',
+  'core/media/xe-watch-state.js',
+  'store/xe-vod-index.js',
+  'store/xe-featured-index.js',
+  'store/xe-live-index.js',
+  'store/xe-m3u-index.js',
+  'store/xe-runtime-cfg.js',
+  'core/shell/xe-bridge.js',
+  'core/shell/xe-controller.js'
+];
 
 const coreNet = [
   'core/net/xe-env.js',
@@ -99,6 +132,7 @@ const bundleObj = {
   rev: rev,
   version: version,
   createdAt: new Date().toISOString(),
+  scripts: orderedScripts,
   files: filesMap
 };
 const bundleText = JSON.stringify(bundleObj);
@@ -113,7 +147,7 @@ fs.writeFileSync(path.join(otaDir, bundleName), bundleText, 'utf8');
 const manifestObj = {
   rev: rev,
   version: version,
-  minBaseRev: 1,
+  minBaseRev: minBaseRev,
   bundle: bundleName,
   sha256: sha256,
   sig: sig,

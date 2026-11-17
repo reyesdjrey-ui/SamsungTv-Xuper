@@ -170,14 +170,43 @@
     }
   }
 
-  function verifyManifest(m) {
+  function verifySignature(m) {
     if (!m || typeof m !== "object") return false;
     var rev = Number(m.rev || 0);
-    var minBase = Number(m.minBaseRev || 1);
-    if (!rev || rev <= BASE_REV || minBase > BASE_REV) return false;
-    if (!m.version || !m.bundle || !m.sha256 || !m.sig) return false;
+    if (!rev || !m.version || !m.bundle || !m.sha256 || !m.sig) return false;
     var expected = md5Hex("xuper-ota:" + rev + ":" + m.version + ":" + String(m.sha256).toLowerCase() + ":" + OTA_SALT);
     return !!expected && expected === String(m.sig).toLowerCase();
+  }
+
+  function verifyManifest(m) {
+    if (!verifySignature(m)) return false;
+    var rev = Number(m.rev || 0);
+    var minBase = Number(m.minBaseRev || 1);
+    return rev > BASE_REV && minBase <= BASE_REV;
+  }
+
+  function showWgtUpdateBanner(m) {
+    try {
+      w.__XE_WGT_UPDATE_REQUIRED = {
+        version: String(m.version || ""),
+        minBaseRev: Number(m.minBaseRev || 1),
+        notes: String(m.notes || ""),
+        url: "https://github.com/reyesdjrey-ui/SamsungTv-Xuper/releases"
+      };
+      setTimeout(function () {
+        try {
+          if (!d.body || d.getElementById("xe-wgt-update-banner")) return;
+          var box = d.createElement("div");
+          box.id = "xe-wgt-update-banner";
+          box.style.cssText = "position:fixed;top:24px;right:32px;z-index:99999;background:rgba(15,23,42,0.92);color:#f8fafc;border:1px solid rgba(56,189,248,0.6);border-radius:10px;padding:12px 18px;font-family:sans-serif;font-size:20px;box-shadow:0 8px 24px rgba(0,0,0,0.45);max-width:560px;pointer-events:none;";
+          box.textContent = "Nueva versión " + String(m.version || "") + " disponible. Instala el nuevo .wgt para actualizar.";
+          d.body.appendChild(box);
+          setTimeout(function () {
+            try { if (box.parentNode) box.parentNode.removeChild(box); } catch (_) {}
+          }, 12000);
+        } catch (_) {}
+      }, 2500);
+    } catch (_) {}
   }
 
   function prepareWorkerBlob(bundleFiles) {
@@ -222,6 +251,7 @@
 
   function loadScriptsSequential(bundleObj) {
     var files = (bundleObj && bundleObj.files) || null;
+    var scriptList = (bundleObj && bundleObj.scripts && bundleObj.scripts.length) ? bundleObj.scripts : MODULES;
     var activeRev = bundleObj ? Number(bundleObj.rev || BASE_REV) : BASE_REV;
     var activeVer = bundleObj ? String(bundleObj.version || BASE_VERSION) : BASE_VERSION;
 
@@ -252,11 +282,11 @@
     }
 
     function step() {
-      if (idx >= MODULES.length) {
+      if (idx >= scriptList.length) {
         onAllDone();
         return;
       }
-      var path = MODULES[idx++];
+      var path = scriptList[idx++];
       var s = d.createElement("script");
       if (files && typeof files[path] === "string") {
         s.type = "text/javascript";
@@ -323,6 +353,11 @@
         }
         var manifest = null;
         try { manifest = JSON.parse(txt); } catch (_) { manifest = null; }
+        if (verifySignature(manifest) && Number(manifest.minBaseRev || 1) > BASE_REV) {
+          showWgtUpdateBanner(manifest);
+          loadScriptsSequential(cached);
+          return;
+        }
         if (!verifyManifest(manifest) || Number(manifest.rev) <= curRev) {
           loadScriptsSequential(cached);
           return;
