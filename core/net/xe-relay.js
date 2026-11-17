@@ -49,7 +49,8 @@
   }
 
   function isTizen3Browser() {
-    return typeof navigator !== "undefined" && /Tizen\s*3\.|AppleWebKit\/538/i.test(navigator.userAgent || "");
+    var ua = root.__xeOrigUserAgent || (typeof navigator !== "undefined" ? (navigator.userAgent || "") : "");
+    return /Tizen\s*3\.|AppleWebKit\/538/i.test(ua);
   }
 
   function relayBase() {

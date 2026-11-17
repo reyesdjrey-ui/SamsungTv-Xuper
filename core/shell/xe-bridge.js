@@ -504,6 +504,44 @@
       return typeof tok === 'string' && tok.indexOf('.gente.') !== -1 && tok.length > 24;
     }
 
+    var ORIG_USER_AGENT = w.__xeOrigUserAgent || (typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '');
+    if (!w.__xeOrigUserAgent && ORIG_USER_AGENT) w.__xeOrigUserAgent = ORIG_USER_AGENT;
+    var EPIC_MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+    var __xeEpicUaPromise = null;
+
+    function isEpicBlockedHost(url) {
+      return /playlatam\.site|epictvparaiphone\.top|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221/i.test(String(url || ''));
+    }
+
+    function ensureEpicUserAgent() {
+      try {
+        var curUa = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+        if (/iPhone|iPad/i.test(curUa) && !/SMART-TV|Tizen/i.test(curUa)) {
+          return Promise.resolve(true);
+        }
+        if (__xeEpicUaPromise) return __xeEpicUaPromise;
+        if (w.tizen && w.tizen.websetting && typeof w.tizen.websetting.setUserAgentString === 'function') {
+          __xeEpicUaPromise = new Promise(function (resolve) {
+            var done = false;
+            var tm = setTimeout(function () {
+              if (!done) { done = true; __xeEpicUaPromise = null; resolve(false); }
+            }, 1200);
+            try {
+              w.tizen.websetting.setUserAgentString(EPIC_MOBILE_UA, function () {
+                if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(true); }
+              }, function () {
+                if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(false); }
+              });
+            } catch (_) {
+              if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(false); }
+            }
+          });
+          return __xeEpicUaPromise;
+        }
+      } catch (_) {}
+      return Promise.resolve(false);
+    }
+
     function getEpicTokenCached() {
       try {
         var raw = w.localStorage && w.localStorage.getItem(EPIC_TOKEN_KEY);
@@ -518,11 +556,12 @@
           }
         }
       } catch (_) {}
-      return DEFAULT_PULSERA;
+      return '';
     }
 
     function isTizen3Device() {
-      return typeof navigator !== 'undefined' && /Tizen\s*3\.|AppleWebKit\/538/i.test(navigator.userAgent || '');
+      var ua = w.__xeOrigUserAgent || (typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '');
+      return /Tizen\s*3\.|AppleWebKit\/538/i.test(ua);
     }
 
     var PORTAL_MIRRORS = [
@@ -589,37 +628,39 @@
 
     function probeFastestPortalMirror() {
       if (w.__xePortalProbeInflight || typeof w.fetch !== 'function' || isTizen3Device()) return;
-      var bestHost = '';
-      var bestMs = 999999;
-      var pending = PORTAL_MIRRORS.length;
       w.__xePortalProbeInflight = true;
-      for (var i = 0; i < PORTAL_MIRRORS.length; i++) {
-        (function (mirrorHost) {
-          var t0 = Date.now();
-          var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-          var tm = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (_) {} }, 3200) : null;
-          w.fetch(mirrorHost + '/iphone/pulsera', {
-            method: 'POST',
-            headers: { 'Accept': 'application/json, text/plain, */*' },
-            signal: ctrl ? ctrl.signal : undefined
-          }).then(function (r) {
-            if (tm) clearTimeout(tm);
-            if (r && r.ok) {
-              var dt = Date.now() - t0;
-              if (dt < bestMs) {
-                bestMs = dt;
-                bestHost = mirrorHost;
-                saveBestPortalHost(bestHost, bestMs);
+      ensureEpicUserAgent().then(function () {
+        var bestHost = '';
+        var bestMs = 999999;
+        var pending = PORTAL_MIRRORS.length;
+        for (var i = 0; i < PORTAL_MIRRORS.length; i++) {
+          (function (mirrorHost) {
+            var t0 = Date.now();
+            var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+            var tm = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (_) {} }, 3200) : null;
+            w.fetch(mirrorHost + '/iphone/pulsera', {
+              method: 'POST',
+              headers: { 'Accept': 'application/json, text/plain, */*' },
+              signal: ctrl ? ctrl.signal : undefined
+            }).then(function (r) {
+              if (tm) clearTimeout(tm);
+              if (r && r.ok) {
+                var dt = Date.now() - t0;
+                if (dt < bestMs) {
+                  bestMs = dt;
+                  bestHost = mirrorHost;
+                  saveBestPortalHost(bestHost, bestMs);
+                }
               }
-            }
-          }).catch(function () {
-            if (tm) clearTimeout(tm);
-          }).then(function () {
-            pending--;
-            if (pending <= 0) w.__xePortalProbeInflight = false;
-          });
-        })(PORTAL_MIRRORS[i]);
-      }
+            }).catch(function () {
+              if (tm) clearTimeout(tm);
+            }).then(function () {
+              pending--;
+              if (pending <= 0) w.__xePortalProbeInflight = false;
+            });
+          })(PORTAL_MIRRORS[i]);
+        }
+      });
     }
 
     function getOrderedPortalMirrors() {
@@ -674,31 +715,34 @@
       if (isTizen3Device() && relay && typeof relay.wrapPortalRequest === 'function') {
         return execOnce(targetUrl, true, '');
       }
-      if (/^https:\/\/playlatam\.site(\/|$)/i.test(String(targetUrl || ''))) {
-        var mirrors = getOrderedPortalMirrors();
-        var tryMirrorIdx = function (mIdx) {
-          if (mIdx >= mirrors.length) {
-            if (relay && typeof relay.wrapPortalRequest === 'function') return execOnce(targetUrl, true, '');
-            return Promise.reject(new Error('Todos los espejos de playlatam fallaron'));
-          }
-          var mHost = mirrors[mIdx];
-          var mUrl = String(targetUrl).replace(/^https:\/\/playlatam\.site/i, mHost);
-          var mTmo = mIdx === 0 ? (timeoutMs || 4500) : Math.min(timeoutMs || 4500, 3500);
-          var prevTmo = timeoutMs;
-          timeoutMs = mTmo;
-          return execOnce(mUrl, false, mHost).then(function (res) {
-            timeoutMs = prevTmo;
-            return res;
-          }, function () {
-            timeoutMs = prevTmo;
-            return tryMirrorIdx(mIdx + 1);
-          });
-        };
-        return tryMirrorIdx(0);
-      }
-      return execOnce(targetUrl, false, '').catch(function (err) {
-        if (relay && typeof relay.wrapPortalRequest === 'function') return execOnce(targetUrl, true, '');
-        throw err;
+      var uaReady = isEpicBlockedHost(targetUrl) ? ensureEpicUserAgent() : Promise.resolve(true);
+      return uaReady.then(function () {
+        if (/^https:\/\/playlatam\.site(\/|$)/i.test(String(targetUrl || ''))) {
+          var mirrors = getOrderedPortalMirrors();
+          var tryMirrorIdx = function (mIdx) {
+            if (mIdx >= mirrors.length) {
+              if (relay && typeof relay.wrapPortalRequest === 'function') return execOnce(targetUrl, true, '');
+              return Promise.reject(new Error('Todos los espejos de playlatam fallaron'));
+            }
+            var mHost = mirrors[mIdx];
+            var mUrl = String(targetUrl).replace(/^https:\/\/playlatam\.site/i, mHost);
+            var mTmo = mIdx === 0 ? (timeoutMs || 4500) : Math.min(timeoutMs || 4500, 3500);
+            var prevTmo = timeoutMs;
+            timeoutMs = mTmo;
+            return execOnce(mUrl, false, mHost).then(function (res) {
+              timeoutMs = prevTmo;
+              return res;
+            }, function () {
+              timeoutMs = prevTmo;
+              return tryMirrorIdx(mIdx + 1);
+            });
+          };
+          return tryMirrorIdx(0);
+        }
+        return execOnce(targetUrl, false, '').catch(function (err) {
+          if (relay && typeof relay.wrapPortalRequest === 'function') return execOnce(targetUrl, true, '');
+          throw err;
+        });
       });
     }
 
@@ -2154,10 +2198,13 @@
       if (/\.m3u8(\?|#|$)/i.test(u)) {
         var cleanDirect = u.replace(/#mpegurl$/i, '');
         if (/epictvparaiphone\.top|playlatam\.site/i.test(cleanDirect)) {
-          return fetchEpicTokenFresh().then(function (tok) {
-            var h = Object.assign({}, baseHdrs || {});
-            h['X-Pulsera'] = tok;
-            return { url: cleanDirect, headers: h };
+          return ensureEpicUserAgent().then(function () {
+            return fetchEpicTokenFresh().then(function (tok) {
+              var h = Object.assign({}, baseHdrs || {});
+              h['X-Cred'] = PORTAL_CRED;
+              if (tok) h['X-Pulsera'] = tok;
+              return { url: cleanDirect, headers: h };
+            });
           });
         }
         return Promise.resolve({ url: cleanDirect, headers: baseHdrs });
@@ -2868,7 +2915,13 @@
       backupCandidates = expandedCandidates;
       var anyNeedsPulsera = primaryNeedsPulsera || backupCandidates.some(function (u) { return pulseraRe.test(u); });
       var hdrPromise = anyNeedsPulsera
-        ? fetchEpicTokenFresh().then(function (tok) { return { 'X-Pulsera': tok }; })
+        ? ensureEpicUserAgent().then(function () {
+            return fetchEpicTokenFresh().then(function (tok) {
+              var outH = { 'X-Cred': PORTAL_CRED };
+              if (tok) outH['X-Pulsera'] = tok;
+              return outH;
+            });
+          })
         : Promise.resolve(null);
 
       hdrPromise.then(function (extraHdrs) {

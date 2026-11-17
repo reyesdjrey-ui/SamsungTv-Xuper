@@ -1,10 +1,10 @@
 {
-  "rev": 1,
-  "version": "3.0.0",
+  "rev": 2,
+  "version": "3.0.0-ota2",
   "minBaseRev": 1,
-  "bundle": "bundle-1.json",
-  "sha256": "27ac71ce6c2022424200454b490c3b42fdaace133217278a659e79b86f25ceb6",
-  "sig": "6c438480d07903a1e098f8c37a219665",
-  "notes": "Base inicial 3.0.0 con scripts dinamicos y aviso shell",
-  "updatedAt": "2026-11-17T21:57:14.294Z"
+  "bundle": "bundle-2.json",
+  "sha256": "c4b0771c8b0f298264e40c26664c93ac10d381ecb29a38e3ce835297ddaf06fd",
+  "sig": "877cf5ab3c131ce9d6b08c464bc7571e",
+  "notes": "Fix ESPN/playlatam directo sin Cloudflare (User-Agent + X-Cred)",
+  "updatedAt": "2026-11-17T22:32:35.894Z"
 }

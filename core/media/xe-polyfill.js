@@ -743,8 +743,9 @@
           if (hdrs['X-Pulsera'] && !reqH['X-Cookie']) {
             reqH['X-Cookie'] = '__Host-pulsera=' + hdrs['X-Pulsera'];
           }
-        } else if (hdrs['X-Pulsera'] && /epictvparaiphone\.top|playlatam\.site/i.test(uStr)) {
-          reqH['X-Pulsera'] = hdrs['X-Pulsera'];
+        } else if (/epictvparaiphone\.top|playlatam\.site/i.test(uStr)) {
+          if (hdrs['X-Cred']) reqH['X-Cred'] = hdrs['X-Cred'];
+          if (hdrs['X-Pulsera']) reqH['X-Pulsera'] = hdrs['X-Pulsera'];
         }
       }
       return fetch(url, {
