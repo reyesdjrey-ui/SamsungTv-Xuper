@@ -515,27 +515,21 @@
       return /playlatam\.site|epictvparaiphone\.top|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221/i.test(String(url || ''));
     }
 
-    function ensureEpicUserAgent(mode) {
-      var targetMode = mode === 'dalvik' ? 'dalvik' : 'iphone';
-      var targetUa = targetMode === 'dalvik' ? EPIC_DALVIK_UA : EPIC_MOBILE_UA;
+    function ensureEpicUserAgent() {
       try {
         var curUa = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
-        if (targetMode === 'dalvik' && /^Dalvik\//i.test(curUa)) {
+        if (/^Dalvik\//i.test(curUa)) {
           return Promise.resolve(true);
         }
-        if (targetMode === 'iphone' && /iPhone|iPad/i.test(curUa) && !/SMART-TV|Tizen/i.test(curUa)) {
-          return Promise.resolve(true);
-        }
-        if (__xeEpicUaPromise && __xeEpicUaMode === targetMode) return __xeEpicUaPromise;
+        if (__xeEpicUaPromise) return __xeEpicUaPromise;
         if (w.tizen && w.tizen.websetting && typeof w.tizen.websetting.setUserAgentString === 'function') {
-          __xeEpicUaMode = targetMode;
           __xeEpicUaPromise = new Promise(function (resolve) {
             var done = false;
             var tm = setTimeout(function () {
               if (!done) { done = true; __xeEpicUaPromise = null; resolve(false); }
             }, 1200);
             try {
-              w.tizen.websetting.setUserAgentString(targetUa, function () {
+              w.tizen.websetting.setUserAgentString(EPIC_DALVIK_UA, function () {
                 if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(true); }
               }, function () {
                 if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(false); }
@@ -723,8 +717,7 @@
       if (isTizen3Device() && relay && typeof relay.wrapPortalRequest === 'function') {
         return execOnce(targetUrl, true, '');
       }
-      var uaMode = /\/canales(\?|$)/i.test(String(targetUrl || '')) && !/\/iphone\//i.test(String(targetUrl || '')) ? 'dalvik' : 'iphone';
-      var uaReady = isEpicBlockedHost(targetUrl) ? ensureEpicUserAgent(uaMode) : Promise.resolve(true);
+      var uaReady = isEpicBlockedHost(targetUrl) ? ensureEpicUserAgent() : Promise.resolve(true);
       return uaReady.then(function () {
         if (/^https:\/\/playlatam\.site(\/|$)/i.test(String(targetUrl || ''))) {
           var mirrors = getOrderedPortalMirrors();
@@ -863,7 +856,9 @@
     function fetchRawEpicPerelmanChannels() {
       return fetchEpicTokenFresh().then(function (tok) {
         if (typeof w.fetch !== 'function') return mergeEpicChannels(null);
-        return epicFetch('https://playlatam.site/iphone/canales', 'GET', { 'Accept': 'application/json', 'X-Pulsera': tok }, 4500)
+        var hdrs = { 'Accept': 'application/json', 'X-Cred': PORTAL_CRED };
+        if (tok) hdrs['X-Pulsera'] = tok;
+        return epicFetch('https://playlatam.site/iphone/canales', 'GET', hdrs, 4500)
           .then(function (payload) {
             var arr = Array.isArray(payload) ? payload : (payload && (payload.channels || payload.data || payload.canales)) || [];
             return mergeEpicChannels(arr);

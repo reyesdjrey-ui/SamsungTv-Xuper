@@ -1,10 +1,10 @@
 {
-  "rev": 3,
-  "version": "3.0.0-ota3",
+  "rev": 4,
+  "version": "3.0.0-ota4",
   "minBaseRev": 1,
-  "bundle": "bundle-3.json",
-  "sha256": "0b4d8144385566406fc580cc9a6bf8e621452f7bac02a6da7848d98c08b390cb",
-  "sig": "1e49fcc218ab84d8643217ed5a51fd91",
-  "notes": "Fix Eventos En Vivo (/menu X-Cred, /canales Dalvik UA, filtrar liveland.af 403)",
-  "updatedAt": "2026-11-17T23:02:29.965Z"
+  "bundle": "bundle-4.json",
+  "sha256": "a6642a056fb26167950e01930f3d79e7eb6e2f79bd2a6754a87a101f84ea4887",
+  "sig": "bcd2a57b5915243d6e8e69cbbf84dcaa",
+  "notes": "Use Dalvik UA + X-Cred across all playlatam/epictv endpoints",
+  "updatedAt": "2026-11-17T23:12:42.206Z"
 }
