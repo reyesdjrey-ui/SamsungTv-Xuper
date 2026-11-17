@@ -1,10 +1,10 @@
 {
-  "rev": 4,
-  "version": "3.0.0-ota4",
+  "rev": 5,
+  "version": "3.0.0-ota5",
   "minBaseRev": 1,
-  "bundle": "bundle-4.json",
-  "sha256": "a6642a056fb26167950e01930f3d79e7eb6e2f79bd2a6754a87a101f84ea4887",
-  "sig": "bcd2a57b5915243d6e8e69cbbf84dcaa",
-  "notes": "Use Dalvik UA + X-Cred across all playlatam/epictv endpoints",
-  "updatedAt": "2026-11-17T23:12:42.206Z"
+  "bundle": "bundle-5.json",
+  "sha256": "29c1a1a2bcc264473424ad14b51ad6262731d0fac1bdef4fc95e440af44b7d76",
+  "sig": "0db326855fc86e7331a223e0c0808edb",
+  "notes": "Experimento Tizen 3.0 hibrido (0 CF directo + failover SEC)",
+  "updatedAt": "2026-11-17T23:56:42.619Z"
 }
