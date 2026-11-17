@@ -25,6 +25,7 @@
       delete this.headers[k];
     }, this);
     this.minInterval = null != opts.minInterval ? opts.minInterval : 120;
+    this.device = opts.device || null;
     this._turn = Promise.resolve();
     this._lastCall = 0;
   }
@@ -491,8 +492,46 @@
               return self.call(endpoint, payload, opts);
             });
           }
-          throw tErr;
         }
+        if (!r.SEC && !opts._secRetried && typeof r.activateSecFallback === "function") {
+          console.warn("[xe-net] Ruta sin cookies fallo en " + endpoint + " (" + (tErr && (tErr.code || tErr.message) || "error") + "), cambiando a respaldo SEC...");
+          opts._secRetried = true;
+          r.activateSecFallback();
+          self.hosts = r.PORTAL_HOSTS.slice();
+          self.host = self.hosts[0];
+          self.headers = Object.assign({}, r.HEADERS);
+          if (self.device && typeof self.device.setAuthMode === "function") {
+            self.device.setAuthMode("sec");
+          }
+          var syncPayloadFields = function () {
+            if (!payload || !self.device) return;
+            var f = self.device.fields();
+            for (var fk in f) {
+              if (Object.prototype.hasOwnProperty.call(f, fk) && fk in payload) {
+                payload[fk] = f[fk];
+              }
+            }
+            if ("userId" in payload) payload.userId = self.device.userId || "";
+            if ("userToken" in payload) payload.userToken = self.device.userToken || "";
+            if ("sn" in payload) payload.sn = self.device.sn || "";
+            if ("drmId" in payload) payload.drmId = self.device.drmId || "";
+            if ("snToken" in payload) payload.snToken = self.device.snToken || "";
+          };
+          if ("v3/snToken" !== endpoint && "v8/active" !== endpoint && self.onSessionExpired &&
+              (!self.device || !self.device.userId || !self.device.userToken || (self.device.isSessionStale && self.device.isSessionStale(28800000)))) {
+            return self.onSessionExpired().then(function () {
+              syncPayloadFields();
+              return self.call(endpoint, payload, opts);
+            });
+          }
+          syncPayloadFields();
+          if ("v3/snToken" === endpoint && self.device && "2" === self.device.identityVersion) {
+            Object.assign(payload, self.device.registrationFields());
+            if (!self.device.store || !self.device.store.get(self.device._key("registeredSn"))) payload.sn = "";
+          }
+          return self.call(endpoint, payload, opts);
+        }
+        if (tErr && tErr.portalError) throw tErr;
         try { typeof localStorage !== "undefined" && localStorage.removeItem("xuper.working_host"); } catch (_) {}
         self.host = self.hosts[0];
         throw tErr;
