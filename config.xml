@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://yourdomain/XuperEclectic" version="3.0.0" height="1080" width="1920" viewmodes="maximized">
+   <access origin="*" subdomains="true"></access>
+   <name>creacion 3</name>
+   <description xml:lang="es">Xuper Eclectic 3.0.0 para Samsung Tizen OS (3.0-10.0). Descifrado 3DES en Web Worker ES5, reproducción AVPlay/HLS mejorada y catálogo ampliado de TV y M3U.</description>
+   <icon src="icon.png"></icon>
+   <content src="index.html"></content>
+   <feature name="http://tizen.org/feature/screen.size.all"></feature>
+   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"></tizen:setting>
+   <tizen:application id="XupEclect1.XuperEclectic" package="XupEclect1" required_version="3.0"></tizen:application>
+   <tizen:privilege name="http://tizen.org/privilege/internet"></tizen:privilege>
+   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"></tizen:privilege>
+   <tizen:privilege name="http://tizen.org/privilege/download"></tizen:privilege>
+   <tizen:privilege name="http://tizen.org/privilege/filesystem.read"></tizen:privilege>
+   <tizen:privilege name="http://tizen.org/privilege/filesystem.write"></tizen:privilege>
+   <tizen:privilege name="http://developer.samsung.com/privilege/avplay"></tizen:privilege>
+   <tizen:privilege name="http://developer.samsung.com/privilege/appcommon"></tizen:privilege>
+   <tizen:privilege name="http://tizen.org/privilege/power"></tizen:privilege>
+   <tizen:privilege name="http://developer.samsung.com/privilege/network.public"></tizen:privilege>
+   <tizen:content-security-policy>default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; worker-src 'self' blob:; child-src 'self' blob:; connect-src * ws: wss: data: blob:; media-src * data: blob:;</tizen:content-security-policy>
+   <tizen:allow-navigation>*</tizen:allow-navigation>
+   <tizen:metadata key="http://samsung.com/tv/metadata/use.preview" value="true"></tizen:metadata>
+   <tizen:profile name="tv-samsung"></tizen:profile>
+</widget>

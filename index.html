@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080, user-scalable=no">
+<title>Xuper Eclectic</title>
+<link rel="stylesheet" href="styles/xe-theme.css">
+<script>
+  window.__xuperErrors = [];
+  window.onerror = function(msg, url, line, col, err) {
+    var f = url ? url.split("/").pop() : "inline";
+    var text = msg + " en " + f + ":" + line;
+    if (window.__xuperErrors.length >= 20) window.__xuperErrors.shift();
+    window.__xuperErrors.push(text);
+    console.error("[Global Error]", text);
+  };
+</script>
+</head>
+<body>
+<!-- Splash Screen overlay -->
+<div id="splash-screen" class="splash-screen">
+  <div class="splash-content">
+    <div class="splash-title">Xuper Eclectic 3.0.0</div>
+    <div class="splash-spinner"></div>
+  </div>
+</div>
+<div id="app">
+
+  <!-- ============================================================
+       WELCOME (Legacy fallback container - disabled)
+       ============================================================ -->
+  <section id="screen-welcome" class="screen" style="display:none !important;">
+    <div class="welcome-name">Xuper Eclectic</div>
+    <div class="welcome-version">v3.0.0</div>
+    <div class="welcome-loading"><img id="welcome-loading-img" alt="" src="media/ui/welcome/img_welcome_loading1.png"></div>
+  </section>
+
+  <!-- ============================================================
+       HOME
+       ============================================================ -->
+  <section id="screen-home" class="screen is-active">
+    <div id="home-pages" class="home-pages"></div>
+    <div class="home-sidebar-bg"></div>
+    <div id="home-tabs" class="home-tabs"></div>
+    <div id="home-notify" class="home-notify"></div>
+    <div id="home-brand-logo" class="home-brand-logo">
+      <img src="media/ui/common/eclex_logo.png" alt="ECLEX TV">
+    </div>
+    <div id="section-preloader" class="section-preloader">
+      <div class="sp-spinner"></div>
+      <div class="sp-text">Cargando catálogo...</div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VOD DETAILS
+       ============================================================ -->
+  <section id="screen-detail" class="screen">
+    <div class="detail-av-mask"></div>
+    <div class="detail-left" id="detail-left"></div>
+    <div class="detail-player" id="detail-player"></div>
+    <div class="detail-buttons" id="detail-buttons"></div>
+    <div class="detail-bottom scrollable" id="detail-bottom"></div>
+  </section>
+
+  <!-- ============================================================
+       SEARCH
+       ============================================================ -->
+  <section id="screen-search" class="screen">
+    <div class="search-keyboard" id="search-keyboard"></div>
+    <div class="search-hot" id="search-hot">
+      <div class="search-hot-title">Búsqueda popular</div>
+      <div class="search-hot-refresh">Actualizar</div>
+      <div class="search-hot-total">Total: <span>10</span></div>
+      <div class="search-grid scrollable" id="search-hot-grid"></div>
+    </div>
+    <div class="search-results" id="search-results">
+      <div class="search-hot-title" id="search-result-title">Resultados de búsqueda</div>
+      <div class="search-hot-total" id="search-result-total">Total: <span>0</span></div>
+      <div class="search-nav" id="search-nav"></div>
+      <div class="search-grid scrollable" id="search-result-grid"></div>
+      <div class="search-empty" id="search-empty">
+        <div class="search-empty-title">No hay resultados</div>
+        <div class="search-empty-hint h1">1. Intente nuevamente usando el nombre de la película, serie, director o actor para obtener un resultado más preciso.</div>
+        <div class="search-empty-hint h2">2. También puede buscar canales en vivo escribiendo el nombre del canal.</div>
+      </div>
+    </div>
+    <div class="search-preloader" id="search-preloader">
+      <div class="sp-spinner"></div>
+      <div class="sp-text">Buscando en el catálogo...</div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SETTINGS
+       ============================================================ -->
+  <section id="screen-settings" class="screen">
+    <div class="settings-menu" id="settings-menu"></div>
+    <div class="settings-right" id="settings-right"></div>
+  </section>
+
+  <!-- ============================================================
+       HISTORIAL Y LISTAS (GESTIÓN DEL USUARIO / RELOJ)
+       ============================================================ -->
+  <section id="screen-history-manager" class="screen">
+    <div class="hm-layout">
+      <!-- Submenú lateral izquierdo (3 opciones) -->
+      <aside class="hm-sidebar">
+        <div class="hm-sidebar-header">
+          <div class="hm-header-icon">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg>
+          </div>
+          <div class="hm-header-title">Mi Espacio</div>
+        </div>
+        <nav class="hm-menu" id="hm-menu">
+          <div class="hm-tab-item focusable is-selected" data-tab="history" id="hm-tab-history">
+            <span class="hm-tab-icon">
+              <svg viewBox="0 0 24 24"><path fill="currentColor" d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+            </span>
+            <span class="hm-tab-label">Historia</span>
+          </div>
+          <div class="hm-tab-item focusable" data-tab="fav-channels" id="hm-tab-fav-channels">
+            <span class="hm-tab-icon">
+              <svg viewBox="0 0 24 24"><path fill="currentColor" d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>
+            </span>
+            <span class="hm-tab-label">★ Canales</span>
+          </div>
+          <div class="hm-tab-item focusable" data-tab="fav-movies" id="hm-tab-fav-movies">
+            <span class="hm-tab-icon">
+              <svg viewBox="0 0 24 24"><path fill="currentColor" d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>
+            </span>
+            <span class="hm-tab-label">★ Películas</span>
+          </div>
+          <div class="hm-tab-item focusable" data-tab="fav-series" id="hm-tab-fav-series">
+            <span class="hm-tab-icon">
+              <svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 6h16v12H4z M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 18H4V4h16v16z"/></svg>
+            </span>
+            <span class="hm-tab-label">★ Series y Anime</span>
+          </div>
+          <div class="hm-tab-item focusable" data-tab="list" id="hm-tab-list">
+            <span class="hm-tab-icon">
+              <svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+            </span>
+            <span class="hm-tab-label">Mi lista</span>
+          </div>
+        </nav>
+      </aside>
+
+      <!-- Área derecha: Cuadrícula y Barra superior -->
+      <main class="hm-main">
+        <header class="hm-toolbar">
+          <div class="hm-tools-left">
+            <button class="hm-tool-btn focusable" id="hm-btn-edit">
+              <svg class="hm-tool-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+              <span>Editar</span>
+            </button>
+            <button class="hm-tool-btn focusable" id="hm-btn-delete">
+              <svg class="hm-tool-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              <span>Eliminar</span>
+            </button>
+          </div>
+          <div class="hm-tools-right">
+            <span class="hm-total-count" id="hm-total-count">Total 0</span>
+          </div>
+        </header>
+
+        <!-- Cuadrícula con scroll -->
+        <div class="hm-grid-wrap scrollable" id="hm-grid-wrap">
+          <div class="hm-grid" id="hm-grid"></div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FILTRO DE CONTENIDOS Y CATÁLOGO
+       ============================================================ -->
+  <section id="screen-filter" class="screen">
+    <div class="filter-layout">
+      <!-- Encabezado de Filtros -->
+      <header class="filter-header">
+        <div class="filter-header-left">
+          <div class="filter-title-icon">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+          </div>
+          <h1 class="filter-title">Filtros de Catálogo</h1>
+          <span class="filter-count" id="filter-count"></span>
+        </div>
+        <div class="filter-header-right">
+          <button class="filter-reset-btn focusable" id="filter-btn-reset">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            <span>Restablecer</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Filas de opciones de filtro -->
+      <div class="filter-rows-container">
+        <!-- Fila 1: Tipo / Sección -->
+        <div class="filter-row" id="filter-row-type">
+          <span class="filter-row-label">Tipo:</span>
+          <div class="filter-pills scrollable" id="filter-pills-type"></div>
+        </div>
+        <!-- Fila 2: Género -->
+        <div class="filter-row" id="filter-row-genre">
+          <span class="filter-row-label">Género:</span>
+          <div class="filter-pills scrollable" id="filter-pills-genre"></div>
+        </div>
+        <!-- Fila 3: Año -->
+        <div class="filter-row" id="filter-row-year">
+          <span class="filter-row-label">Año:</span>
+          <div class="filter-pills scrollable" id="filter-pills-year"></div>
+        </div>
+        <!-- Fila 4: Audio / Idioma -->
+        <div class="filter-row" id="filter-row-audio">
+          <span class="filter-row-label">Audio:</span>
+          <div class="filter-pills scrollable" id="filter-pills-audio"></div>
+        </div>
+        <!-- Fila 5: Ordenar -->
+        <div class="filter-row" id="filter-row-order">
+          <span class="filter-row-label">Ordenar:</span>
+          <div class="filter-pills scrollable" id="filter-pills-order"></div>
+        </div>
+      </div>
+
+      <!-- Cuadrícula de resultados (6 columnas de posters con carga fluida) -->
+      <div class="filter-results-container scrollable" id="filter-results-container">
+        <div class="filter-loading" id="filter-loading" style="display:none;">
+          <div class="filter-spinner"></div>
+          <div class="filter-loading-text">Cargando catálogo…</div>
+        </div>
+        <div class="filter-results-grid" id="filter-results-grid"></div>
+        <div class="filter-empty" id="filter-empty" style="display:none;">
+          <div class="filter-empty-icon">🔍</div>
+          <div class="filter-empty-text">No se encontraron títulos con los filtros seleccionados</div>
+          <div class="filter-empty-sub">Prueba cambiando o limpiando algunos filtros</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FULLSCREEN LIVE / VOD PLAYER
+       ============================================================ -->
+  <section id="screen-player" class="screen">
+    <div class="player-stage" id="player-stage">
+      <div class="player-frame"></div>
+      <video id="player-video" class="player-video" preload="auto" playsinline webkit-playsinline tabindex="-1"></video>
+      <div class="player-live-loader" id="player-live-loader">
+        <div class="live-loader-backdrop"></div>
+        <div class="live-loader-content">
+          <div class="live-loader-spinner"></div>
+          <div class="live-loader-channel" id="live-loader-channel">Cargando señal…</div>
+          <div class="live-loader-hint">Conectando al canal en vivo</div>
+        </div>
+      </div>
+      <div class="player-status" id="player-status"></div>
+      <div class="player-osd-icon" id="player-osd-icon"></div>
+    </div>
+    <!-- Live TV InfoBar -->
+    <div class="player-infobar" id="player-infobar"></div>
+    <!-- VOD InfoBar -->
+    <div class="player-vod-infobar" id="player-vod-infobar">
+      <img class="vod-infobar-poster" id="vod-infobar-poster" alt="" src="media/ui/common/bg_placehoder_vertical.png">
+      <div class="vod-infobar-content">
+        <div class="vod-seekbar-row">
+          <span class="vod-time-current" id="vod-time-current">00:00:00</span>
+          <div class="vod-seekbar" id="vod-seekbar">
+            <div class="vod-seek-buffered" id="vod-seek-buffered"></div>
+            <div class="vod-seek-progress" id="vod-seek-progress"></div>
+            <div class="vod-seek-thumb" id="vod-seek-thumb"></div>
+          </div>
+          <span class="vod-time-total" id="vod-time-total">00:00:00</span>
+        </div>
+        <div class="vod-bottom-row">
+          <div class="vod-infobar-title" id="vod-infobar-title"></div>
+          <div class="vod-infobar-tips">
+            <div class="vod-tip"><img src="media/ui/common/icon_info_exit.png" alt=""><span>Salir</span></div>
+            <div class="vod-tip"><img src="media/ui/common/icon_info_ok.png" alt=""><span>Pausa/Play</span></div>
+            <div class="vod-tip"><img src="media/ui/common/icon_info_back.png" alt=""><span>-10s</span></div>
+            <div class="vod-tip"><img src="media/ui/common/icon_info_fast.png" alt=""><span>+10s</span></div>
+            <div class="vod-tip"><img src="media/ui/common/icon_info_menu.png" alt=""><span>Ajustes (Abajo)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- VOD Subtitle Text Overlay -->
+    <div class="player-subtitles" id="player-subtitles"></div>
+    <div class="player-subtitles" id="subtitle-layer"></div>
+
+    <!-- Season/episode browser (in-player) -->
+    <div class="player-episodes" id="player-episodes">
+      <div class="pe-head">
+        <div class="pe-title" id="pe-title"></div>
+        <div class="pe-sub" id="pe-sub"></div>
+      </div>
+      <div class="pe-body">
+        <div class="pe-seasons-col" id="pe-seasons-col">
+          <div class="pe-col-label">Temporadas</div>
+          <div class="pe-seasons scrollable" id="pe-seasons"></div>
+        </div>
+        <div class="pe-episodes-col">
+          <div class="pe-col-label" id="pe-season-label">Episodios</div>
+          <div class="pe-episodes scrollable" id="pe-episodes"></div>
+        </div>
+      </div>
+      <div class="pe-hint">
+        <span class="pe-key">OK</span><span class="pe-hint-text">Reproducir</span>
+        <span class="pe-key">BACK</span><span class="pe-hint-text">Volver</span>
+      </div>
+    </div>
+
+    <!-- VOD In-Player Bottom Settings -->
+    <div class="player-playsetting-view" id="player-playsetting-view">
+      <div class="psv-scroll scrollable" id="psv-scroll">
+        <!-- SELECCIÓN -->
+        <div class="psv-row" id="psv-sec-selection">
+          <div class="psv-title">SELECCIÓN</div>
+          <div id="psv-episodes-row"></div>
+        </div>
+
+        <!-- IDIOMA -->
+        <div class="psv-row" id="psv-sec-audio">
+          <div class="psv-title">IDIOMA</div>
+          <div class="psv-grid scrollable" id="psv-audio-row">
+            <button class="psv-btn focusable psv-btn-config" id="psv-btn-config">Configuración</button>
+          </div>
+        </div>
+
+        <!-- SUBTÍTULOS -->
+        <div class="psv-row" id="psv-sec-subtitles" style="display:block;">
+          <div class="psv-title">SUBTÍTULOS</div>
+          <div class="psv-grid scrollable" id="psv-subtitles-row">
+            <button class="psv-btn focusable is-selected" id="psv-btn-sub-toggle"><span class="psv-check">✔</span>Desactivados</button>
+          </div>
+        </div>
+
+        <!-- FORMATO DE SUBTÍTULOS -->
+        <div class="psv-row" id="psv-sec-sub-style" style="display:block;">
+          <div class="psv-title">FORMATO DE SUBTÍTULOS</div>
+          <div class="psv-grid scrollable" id="psv-sub-style-row">
+            <button class="psv-btn focusable is-selected" data-style="white"><span class="psv-check">✔</span><span class="dps-color-preview white" style="margin-right:8px;">Aa</span>Blanco</button>
+            <button class="psv-btn focusable" data-style="yellow"><span class="psv-check">✔</span><span class="dps-color-preview yellow" style="margin-right:8px;">Aa</span>Amarillo</button>
+            <button class="psv-btn focusable" data-style="black"><span class="psv-check">✔</span><span class="dps-color-preview black" style="margin-right:8px;">Aa</span>Fondo negro</button>
+          </div>
+        </div>
+
+        <!-- TAMAÑO DE SUBTÍTULOS -->
+        <div class="psv-row" id="psv-sec-sub-size" style="display:block;">
+          <div class="psv-title">TAMAÑO DE SUBTÍTULOS</div>
+          <div class="psv-grid scrollable" id="psv-sub-size-row">
+            <button class="psv-btn focusable is-selected" data-size="normal"><span class="psv-check">✔</span>Normal</button>
+            <button class="psv-btn focusable" data-size="big"><span class="psv-check">✔</span>Grande</button>
+            <button class="psv-btn focusable" data-size="small"><span class="psv-check">✔</span>Pequeño</button>
+          </div>
+        </div>
+
+        <!-- FORMATO DE PANTALLA -->
+        <div class="psv-row" id="psv-sec-aspect">
+          <div class="psv-title">FORMATO DE PANTALLA</div>
+          <div class="psv-grid scrollable" id="psv-aspect-row">
+            <button class="psv-btn focusable" data-aspect="cover"><span class="psv-check">✔</span>Pantalla completa</button>
+            <button class="psv-btn focusable" data-aspect="contain"><span class="psv-check">✔</span>Normal</button>
+            <button class="psv-btn focusable" data-aspect="16-9"><span class="psv-check">✔</span>16:9</button>
+            <button class="psv-btn focusable" data-aspect="4-3"><span class="psv-check">✔</span>4:3</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="player-channels" id="player-channels"></div>
+  </section>
+
+  <!-- Modal Dialog: Ajuste de reproducir -->
+  <div class="dialog-playsettings-overlay" id="dialog-playsettings">
+    <div class="dialog-playsettings-box">
+      <div class="dps-header">Ajuste de reproducir</div>
+      <div class="dps-body scrollable">
+        <div class="dps-row" id="dps-row-audio">
+          <div class="dps-label">Audio</div>
+          <div class="dps-options scrollable" id="dps-audio-options"></div>
+        </div>
+        <div class="dps-row" id="dps-row-switch">
+          <div class="dps-label">Subtítulo</div>
+          <div class="dps-switch focusable" id="dps-sub-switch">
+            <span class="dps-switch-dot"></span>
+            <span class="dps-switch-text">OFF</span>
+          </div>
+        </div>
+        <div class="dps-row dps-sub-subrow" id="dps-row-lang">
+          <div class="dps-label">Idioma</div>
+          <div class="dps-options scrollable" id="dps-lang-options"></div>
+        </div>
+        <div class="dps-row dps-sub-subrow" id="dps-row-size">
+          <div class="dps-label">Tamaño</div>
+          <div class="dps-options" id="dps-size-options">
+            <button class="dps-btn focusable is-selected" data-size="normal">Normal</button>
+            <button class="dps-btn focusable" data-size="big">Grande</button>
+            <button class="dps-btn focusable" data-size="small">Pequeño</button>
+          </div>
+        </div>
+        <div class="dps-row dps-sub-subrow" id="dps-row-style">
+          <div class="dps-label">Formato</div>
+          <div class="dps-options" id="dps-style-options">
+            <button class="dps-btn focusable is-selected" data-style="white"><span class="dps-color-preview white">Aa</span> Blanco</button>
+            <button class="dps-btn focusable" data-style="yellow"><span class="dps-color-preview yellow">Aa</span> Amarillo</button>
+            <button class="dps-btn focusable" data-style="black"><span class="dps-color-preview black">Aa</span> Fondo negro</button>
+          </div>
+        </div>
+      </div>
+      <div class="dps-footer">
+        <button class="dps-exit-btn focusable" id="dps-btn-exit">Salida</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Channel Search Overlay (covers internal list with keyboard on left, results on right) -->
+  <div class="live-channel-search-overlay" id="live-channel-search-overlay">
+    <div class="lcs-left" id="lcs-left">
+      <div class="lcs-input-box" id="lcs-input-box">
+        <span class="lcs-icon">🔍</span>
+        <span class="lcs-query-text" id="lcs-query-text">Buscar canales en vivo...</span>
+        <span class="lcs-cursor">|</span>
+      </div>
+      <div class="lcs-actions" id="lcs-actions"></div>
+      <div class="lcs-keyboard" id="lcs-keyboard"></div>
+      <div class="lcs-feedback focusable" id="lcs-feedback">Cerrar buscador</div>
+    </div>
+    <div class="lcs-right" id="lcs-right">
+      <div class="lcs-results-header">
+        <div class="lcs-results-title">RESULTADOS</div>
+        <div class="lcs-results-count" id="lcs-results-count">Escribe para buscar...</div>
+      </div>
+      <div class="lcs-results-list scrollable" id="lcs-results-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Tizen Webapis (guarded) -->
+<script src="$WEBAPIS/webapis/webapis.js" onerror="this.onerror=null;"></script>
+
+<!-- Runtime Polyfills & Vendor Libraries -->
+<script src="core/media/xe-polyfill.js"></script>
+<script src="core/media/xe-dom-shim.js"></script>
+<script src="lib/xe-hls.min.js"></script>
+<script src="lib/xe-crypto.min.js"></script>
+
+<!-- OTA Secure Boot Loader (loads updated JS/CSS from GitHub Pages with offline cache & rollback) -->
+<script src="core/net/xe-ota.js"></script>
+</body>
+</html>

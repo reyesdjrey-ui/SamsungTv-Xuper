@@ -1,0 +1,260 @@
+# Project type [web_app, test_runner]
+project_type: web_app
+
+# Default profile, Tizen API version
+profile: tv-samsung
+api_version: "3.0"
+
+# Build type [Debug/ Release/ Test]
+build_type: Debug
+
+# Output name for application
+output_name: XuperEclectic
+
+# Output path for build
+output_path: ""
+
+# Enable size optimization of wgt for web workspace
+opt: false
+
+# Signing profile to be used for Tizen package signing
+# If value is empty: "", active signing profile will be used
+# Else If value is ".", default signing profile will be used
+signing_profile: ""
+
+# list of certs in web project (.trust-anchor)
+trust_anchor: []
+
+# list of files in web project (.html,.css etc) and resources
+files:
+  - core/media/xe-audio-clock.js
+  - core/media/xe-byte-buffer.js
+  - core/media/xe-dom-shim.js
+  - core/media/xe-gateway.js
+  - core/media/xe-hevc-engine.js
+  - core/media/xe-isobmff-mux.js
+  - core/media/xe-live-engine.js
+  - core/media/xe-mp4-engine.js
+  - core/media/xe-polyfill.js
+  - core/media/xe-system-scanner.js
+  - core/media/xe-tizen-av.js
+  - core/media/xe-track-mgr.js
+  - core/media/xe-vod-engine.js
+  - core/media/xe-watch-state.js
+  - core/net/xe-auth.js
+  - core/net/xe-broadcast.js
+  - core/net/xe-cipher.js
+  - core/net/xe-crypto-worker.js
+  - core/net/xe-digest.js
+  - core/net/xe-env.js
+  - core/net/xe-identity.js
+  - core/net/xe-manifest.js
+  - core/net/xe-net.js
+  - core/net/xe-ota.js
+  - core/net/xe-relay.js
+  - core/net/xe-repository.js
+  - core/shell/xe-bridge.js
+  - core/shell/xe-controller.js
+  - favicon.ico
+  - icon-192.png
+  - icon-512.png
+  - icon.png
+  - index.html
+  - lib/xe-crypto.min.js
+  - lib/xe-hls.min.js
+  - media/subs/en.vtt
+  - media/subs/es.vtt
+  - media/ui/common/bg_placehoder_vertical.png
+  - media/ui/common/bg_vod_more.png
+  - media/ui/common/eclex_bg_blurred.jpg
+  - media/ui/common/eclex_logo.png
+  - media/ui/common/espn.png
+  - media/ui/common/espn2.png
+  - media/ui/common/focus_home_navigation.9.png
+  - media/ui/common/ic_no_person_placeholder.png
+  - media/ui/common/icon_back_state.png
+  - media/ui/common/icon_error.png
+  - media/ui/common/icon_info_back.png
+  - media/ui/common/icon_info_exit.png
+  - media/ui/common/icon_info_fast.png
+  - media/ui/common/icon_info_infobar.png
+  - media/ui/common/icon_info_menu.png
+  - media/ui/common/icon_info_ok.png
+  - media/ui/common/icon_right_arrow.png
+  - media/ui/common/icon_status_backward.png
+  - media/ui/common/icon_status_forward.png
+  - media/ui/common/icon_status_pause.png
+  - media/ui/common/img_thubnail_default.png
+  - media/ui/home/bg_home_live_divider.png
+  - media/ui/home/home_live_btn_all_focus.png
+  - media/ui/home/home_live_btn_all_normal.png
+  - media/ui/home/home_live_btn_fav_focus.png
+  - media/ui/home/home_live_btn_fav_normal.png
+  - media/ui/home/home_live_btn_search_focus.png
+  - media/ui/home/home_live_btn_search_normal.png
+  - media/ui/home/home_live_channel_down.png
+  - media/ui/home/home_live_channel_play_focus.png
+  - media/ui/home/home_live_channel_play_normal.png
+  - media/ui/home/home_live_channel_up.png
+  - media/ui/home/ic_live_channel_function.png
+  - media/ui/home/icon_category_adult.png
+  - media/ui/home/icon_category_anime.png
+  - media/ui/home/icon_category_national.png
+  - media/ui/home/icon_category_show.png
+  - media/ui/home/icon_category_sports.png
+  - media/ui/home/icon_free_live.png
+  - media/ui/home/icon_free_more.png
+  - media/ui/home/icon_free_movie.png
+  - media/ui/home/icon_free_tv.png
+  - media/ui/home/icon_full_screen.png
+  - media/ui/home/icon_home_app.png
+  - media/ui/home/icon_home_personal.png
+  - media/ui/home/icon_home_search.png
+  - media/ui/home/icon_live_free_placeholder.png
+  - media/ui/home/icon_navigation_title_kids.png
+  - media/ui/home/icon_navigation_title_uhd.png
+  - media/ui/home/icon_notify_message.png
+  - media/ui/home/icon_notify_message_focus.png
+  - media/ui/home/icon_notify_personal.png
+  - media/ui/home/icon_notify_personal_focus.png
+  - media/ui/home/icon_notify_records.png
+  - media/ui/home/icon_notify_records_focus.png
+  - media/ui/home/icon_notify_search.png
+  - media/ui/home/icon_notify_search_focus.png
+  - media/ui/home/icon_notify_setting.png
+  - media/ui/home/icon_notify_setting_focus.png
+  - media/ui/home/live_channel_default_icon.png
+  - media/ui/search/ic_vod_search_123.png
+  - media/ui/search/ic_vod_search_123_default.png
+  - media/ui/search/ic_vod_search_abc.png
+  - media/ui/search/ic_vod_search_abc_default.png
+  - media/ui/search/ic_vod_search_clear.png
+  - media/ui/search/ic_vod_search_clear_default.png
+  - media/ui/search/ic_vod_search_delete.png
+  - media/ui/search/ic_vod_search_delete_default.png
+  - media/ui/search/ic_vod_search_space.png
+  - media/ui/search/ic_vod_search_space_default.png
+  - media/ui/search/icon_category_filter_f.png
+  - media/ui/search/icon_category_filter_n.png
+  - media/ui/search/icon_category_search_f.png
+  - media/ui/search/icon_category_search_n.png
+  - media/ui/search/icon_search_clear.png
+  - media/ui/search/icon_search_clear_focused.png
+  - media/ui/search/icon_search_delete.png
+  - media/ui/search/icon_search_delete_focused.png
+  - media/ui/search/icon_search_feedback.png
+  - media/ui/search/icon_search_space.png
+  - media/ui/search/icon_search_space_focused.png
+  - media/ui/settings/icon_function_about.png
+  - media/ui/settings/icon_function_clean.png
+  - media/ui/settings/icon_function_cr_switch_close.png
+  - media/ui/settings/icon_function_cr_switch_open.png
+  - media/ui/settings/icon_function_feedback.png
+  - media/ui/settings/icon_function_help_center.png
+  - media/ui/settings/icon_function_lock.png
+  - media/ui/settings/icon_function_play_setting.png
+  - media/ui/settings/icon_function_upgrade.png
+  - media/ui/settings/icon_person_about_us_normal.png
+  - media/ui/settings/icon_person_feedback_normal.png
+  - media/ui/settings/icon_person_help_center_normal.png
+  - media/ui/settings/icon_person_lock_normal.png
+  - media/ui/settings/icon_person_member_center_normal.png
+  - media/ui/settings/icon_person_my_account_normal.png
+  - media/ui/settings/icon_person_my_list_normal.png
+  - media/ui/settings/icon_person_order_history_normal.png
+  - media/ui/settings/icon_person_playback_settings_normal.png
+  - media/ui/settings/icon_person_set_up_normal.png
+  - media/ui/settings/icon_person_share_app_normal.png
+  - media/ui/settings/icon_subtitle_switch_off.png
+  - media/ui/settings/icon_subtitle_switch_on.png
+  - media/ui/settings/icon_website.png
+  - media/ui/settings/icon_whatsapp.png
+  - media/ui/settings/qr_kofi.png
+  - media/ui/settings/qr_youtube.png
+  - media/ui/settings/vod_email_icon.png
+  - media/ui/settings/vod_feedback_radio_checked.png
+  - media/ui/vod/ic_down_icon.png
+  - media/ui/vod/icon_detail_display.png
+  - media/ui/vod/icon_detail_download.png
+  - media/ui/vod/icon_detail_downloading.png
+  - media/ui/vod/icon_detail_favorite.png
+  - media/ui/vod/icon_detail_favorited.png
+  - media/ui/vod/icon_detail_fullscreen.png
+  - media/ui/vod/icon_detail_not_vip.png
+  - media/ui/vod/icon_detail_not_vip_unfocus.png
+  - media/ui/vod/icon_detail_quality.png
+  - media/ui/vod/icon_detail_subscribe.png
+  - media/ui/vod/icon_detail_subscribed.png
+  - media/ui/vod/icon_detail_subtitle_audio.png
+  - media/ui/vod/icon_nation_selected.png
+  - media/ui/vod/icon_nation_selected_focus.png
+  - media/ui/vod/icon_purchase_magis_logo.png
+  - media/ui/vod/icon_ts_tip.png
+  - media/ui/vod/player_window_focus.9.png
+  - media/ui/vod/poster_focus.9.png
+  - media/ui/vod/poster_focus_nohalo.9.png
+  - media/ui/vod/vod_icon_tag_4k.png
+  - media/ui/vod/vod_icon_tag_new.png
+  - media/ui/vod/vod_icon_tag_score_bg.png
+  - media/ui/vod/vod_icon_tag_special.png
+  - media/ui/vod/vod_icon_tag_subtitle.png
+  - media/ui/vod/vod_icon_tag_ts.png
+  - media/ui/welcome/amazingkids.otf
+  - media/ui/welcome/eclex_bg.jpg
+  - media/ui/welcome/icon_app.png
+  - media/ui/welcome/img_welcome_loading1.png
+  - media/ui/welcome/img_welcome_loading10.png
+  - media/ui/welcome/img_welcome_loading11.png
+  - media/ui/welcome/img_welcome_loading12.png
+  - media/ui/welcome/img_welcome_loading13.png
+  - media/ui/welcome/img_welcome_loading14.png
+  - media/ui/welcome/img_welcome_loading15.png
+  - media/ui/welcome/img_welcome_loading16.png
+  - media/ui/welcome/img_welcome_loading2.png
+  - media/ui/welcome/img_welcome_loading3.png
+  - media/ui/welcome/img_welcome_loading4.png
+  - media/ui/welcome/img_welcome_loading5.png
+  - media/ui/welcome/img_welcome_loading6.png
+  - media/ui/welcome/img_welcome_loading7.png
+  - media/ui/welcome/img_welcome_loading8.png
+  - media/ui/welcome/img_welcome_loading9.png
+  - media/ui/welcome/wind_bg.webp
+  - store/xe-featured-index.js
+  - store/xe-live-index.js
+  - store/xe-m3u-index.js
+  - store/xe-runtime-cfg.js
+  - store/xe-vod-index.js
+  - styles/xe-theme.css
+
+# list of files to exclude based on the matched patterns
+excludes:
+  - Build/*
+  - Debug/*
+  - Directory.Build.targets
+  - Release/*
+  - Test/*
+  - \.Build/.*
+  - \.buildResult/.*
+  - \.csproj
+  - \.externalToolBuilders/.*
+  - \.gn
+  - \.obj/.*
+  - \.package/.*
+  - \.project
+  - \.rds_delta
+  - \.sdk_delta.info
+  - \.settings/.*
+  - \.sign/.*
+  - \.tizen-ui-builder-tool.xml
+  - \.tproject
+  - \.wgt
+  - ^\.git/.*
+  - ^\.gitignore$
+  - ^ota/.*
+  - ^tools/.*
+  - tizen_web_project.yaml
+  - webUnitTest/*
+
+# project dependencies
+deps: []
+

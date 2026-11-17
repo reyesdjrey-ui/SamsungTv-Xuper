@@ -1,0 +1,10 @@
+{
+  "rev": 1,
+  "version": "3.0.0",
+  "minBaseRev": 1,
+  "bundle": "bundle-1.json",
+  "sha256": "8dfd5538c8108f303303e198935d2efb946596ee5e073e39168917ecb4fb463e",
+  "sig": "c4334da995cf3200b5037971f59d0d38",
+  "notes": "Base inicial 3.0.0 con cargador OTA",
+  "updatedAt": "2026-11-17T21:07:04.980Z"
+}

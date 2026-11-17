@@ -1,0 +1,708 @@
+/* Xuper Eclectic Live Transport Engine v2.0.25 */
+(function(w,d){'use strict';
+  if(w.HTMLMediaElement && !w.__hookedMedia){
+    w.__hookedMedia = true;
+    var origLoad = HTMLMediaElement.prototype.load;
+    HTMLMediaElement.prototype.load = function(){
+      var stack = (new Error().stack || '').replace(/\n/g, ' -> ').slice(0, 120);
+      if(w.__trace) w.__trace.push('MLOAD:' + stack);
+      return origLoad.apply(this, arguments);
+    };
+    try {
+      var srcDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+      if (srcDesc && srcDesc.set) {
+        var origSetSrc = srcDesc.set;
+        Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+          set: function(val) {
+            var stack = (new Error().stack || '').replace(/\n/g, ' -> ').slice(0, 140);
+            if(w.__trace) w.__trace.push('SET_SRC(' + String(val).slice(0, 20) + '):' + stack);
+            return origSetSrc.call(this, val);
+          }
+        });
+      }
+    } catch(_) {}
+    var origRMA = HTMLMediaElement.prototype.removeAttribute;
+    HTMLMediaElement.prototype.removeAttribute = function(attr) {
+      if (attr === 'src') {
+        var stack = (new Error().stack || '').replace(/\n/g, ' -> ').slice(0, 140);
+        if(w.__trace) w.__trace.push('RM_SRC:' + stack);
+      }
+      return origRMA.apply(this, arguments);
+    };
+    if (w.MediaSource) {
+      var origEOS = MediaSource.prototype.endOfStream;
+      MediaSource.prototype.endOfStream = function(err){
+        var stack = (new Error().stack || '').replace(/\n/g, ' -> ').slice(0, 120);
+        if(w.__trace) w.__trace.push('EOS:' + err + ' @ ' + stack);
+        return origEOS.apply(this, arguments);
+      };
+      var origAddSB = MediaSource.prototype.addSourceBuffer;
+      MediaSource.prototype.addSourceBuffer = function(type) {
+        if(w.__trace) w.__trace.push('addSB:' + type);
+        var sb = origAddSB.call(this, type);
+        sb.__type = type;
+        sb.addEventListener('error', function(e) {
+          if(w.__trace) w.__trace.push('SB_ERR(' + sb.__type + ')');
+        });
+        var origApp = sb.appendBuffer;
+        sb.appendBuffer = function(buf) {
+          if(w.__trace) w.__trace.push('appB(' + sb.__type.slice(0,5) + ',' + (buf?buf.byteLength:0) + ')');
+          return origApp.call(this, buf);
+        };
+        return sb;
+      };
+    }
+  }
+  var direct=w.CactusDirect, av=w.CactusAVPlay;
+  if(!direct || !av || !direct.connect) return;
+  var oldHttp=direct.http, oldStart=av.start, oldStop=av.stop;
+  var MEDIA='https://cactus-live.invalid', playing=null, pending=null, ticket=0, statusId='cactus-live-status';
+  var MS=w.MediaSource||w.WebKitMediaSource;
+  function errorMessage(e){return String(e&&e.message||e||'Error de TV en vivo').slice(0,240);}
+  function isLive(i){return !!(i&&Array.isArray(i.liveAddressList)&&i.liveAddressList.length);}
+  function request(req,type,signal,maxRetries){
+    if(!req||!/^https?:\/\//i.test(req.url||''))return Promise.reject(Error('El proveedor no devolvió una dirección multimedia válida.'));
+    var retries=typeof maxRetries==='number'?maxRetries:3,attempt=0;
+    function exec(){
+      return fetch(req.url,{method:'GET',headers:req.headers||{},signal:signal||undefined,cache:'no-store',redirect:'follow'}).then(function(r){
+        if(!r.ok){
+          if(attempt<retries&&(r.status>=500||r.status===429||r.status===404)){
+            attempt++;
+            var delay=Math.min(1000,Math.round(200*Math.pow(1.5,attempt)));
+            return new Promise(function(resolve){setTimeout(resolve,delay);}).then(exec);
+          }
+          throw Error('El servidor multimedia rechazó la solicitud (HTTP '+r.status+').');
+        }
+        return type==='arraybuffer'?r.arrayBuffer():r.text();
+      }).catch(function(e){
+        if(e&&e.name==='AbortError')throw e;
+        if(attempt<retries){
+          attempt++;
+          var delay=Math.min(1000,Math.round(200*Math.pow(1.5,attempt)));
+          return new Promise(function(resolve){setTimeout(resolve,delay);}).then(exec);
+        }
+        if(e instanceof TypeError)throw Error('Tizen no puede acceder al servidor multimedia: red, HTTP o permisos CORS del proveedor.');
+        throw e;
+      });
+    }
+    return exec();
+  }
+  function resolveUrl(ref,base){
+    ref=String(ref||'').trim();
+    if(/^https?:\/\//i.test(ref))return ref;
+    try{var u=new URL(ref,base);if(/^https?:$/.test(u.protocol))return u.href;}catch(_){}
+    var m=/^(https?:\/\/[^\/]+)(\/[^?#]*)?/.exec(String(base||''));
+    if(!m)throw Error('Manifest HLS con URL de segmento inválida.');
+    var origin=m[1],path=m[2]||'/';
+    if(ref.charAt(0)==='/')return origin+ref;
+    var dir=path.slice(0,path.lastIndexOf('/')+1);
+    return origin+dir+ref;
+  }
+  function prefetchLiveSegments(s,startSeq,count){
+    if(!s||s.stopped||!s.map||!s.session||!s.abort)return;
+    var targetCount=count||6,current=startSeq||0,queued=0;
+    var keys=Object.keys(s.map||{}).map(Number).sort(function(a,b){return a-b;});
+    s.segCache=s.segCache||Object.create(null);
+    s.segOrder=s.segOrder||[];
+    for(var i=0;i<keys.length;i++){
+      var seq=keys[i];
+      if(seq>=current&&!s.segCache[seq]){
+        (function(seqNo){
+          var url=s.map&&s.map[seqNo];if(!url)return;
+          var cacheRef=s.segCache;
+          var p=request(s.session.segmentRequest(url),'arraybuffer',s.abort.signal,3).then(function(buf){
+            if(cacheRef)cacheRef[seqNo]=buf;
+            return buf;
+          });
+          p.catch(function(){
+            if(cacheRef&&cacheRef[seqNo]===p)delete cacheRef[seqNo];
+          });
+          s.segCache[seqNo]=p;
+          s.segOrder.push(seqNo);
+        })(seq);
+        queued++;
+        if(queued>=targetCount)break;
+      }
+    }
+    while(s.segOrder&&s.segOrder.length>24){
+      var oldest=s.segOrder.shift();
+      if(s.segCache&&oldest<current-2){delete s.segCache[oldest];}
+    }
+  }
+  function mediaManifest(s,txt,base){
+    if(/#EXT-X-KEY\s*:/i.test(txt)||/#EXT-X-SESSION-KEY\s*:/i.test(txt))throw Error('Esta transmisión declara cifrado: se requiere el reproductor o licencia compatible del proveedor.');
+    if(/#EXT-X-MAP\s*:/i.test(txt))throw Error('Este canal utiliza un formato fMP4 que requiere otro perfil de HLS.');
+    var lines=txt.replace(/\r/g,'').split('\n'), master=null, rawChunks=[], duration=4, headDur=4, live=true, disc=false;
+    for(var j=0;j<lines.length;j++){
+      var line=lines[j].trim();if(!line)continue;
+      if(line.indexOf('#EXT-X-STREAM-INF:')===0){for(var k=j+1;k<lines.length;k++)if(lines[k].trim()&&!/^#/.test(lines[k].trim())){master=resolveUrl(lines[k].trim(),base);break;}break;}
+      if(line.indexOf('#EXT-X-TARGETDURATION:')===0)headDur=Math.max(2,Number(line.split(':')[1])||4);
+      else if(line.indexOf('#EXTINF:')===0)duration=Math.max(.2,Number(line.substring(8).split(',')[0])||4);
+      else if(line==='#EXT-X-ENDLIST')live=false;
+      else if(line==='#EXT-X-DISCONTINUITY')disc=true;
+      else if(line.indexOf('#EXT-X-BYTERANGE')===0)throw Error('Los segmentos BYTERANGE aún no son compatibles con TV en vivo.');
+      else if(line.charAt(0)!=='#'){
+        rawChunks.push({uri:resolveUrl(line,base),duration:duration,discontinuity:disc});
+        disc=false;duration=headDur;
+      }
+    }
+    if(master)return {variant:master};
+    if(!/^#EXTM3U/.test(txt)||!rawChunks.length)throw Error('El CDN no devolvió una lista HLS válida de segmentos.');
+
+    // Asignación de secuencias estrictamente monotónicas e inmunes a saltos de CDN
+    s.uriToSeq = s.uriToSeq || Object.create(null);
+    var knownIdx = -1;
+    for (var m = 0; m < rawChunks.length; m++) {
+      if (typeof s.uriToSeq[rawChunks[m].uri] === 'number') {
+        knownIdx = m;
+        break;
+      }
+    }
+    if (knownIdx !== -1) {
+      var baseSeq = s.uriToSeq[rawChunks[knownIdx].uri];
+      for (var b = knownIdx; b >= 0; b--) {
+        var prevSeq = baseSeq - (knownIdx - b);
+        s.uriToSeq[rawChunks[b].uri] = prevSeq;
+        rawChunks[b].seq = prevSeq;
+      }
+      for (var f = knownIdx + 1; f < rawChunks.length; f++) {
+        var nextSeqVal = baseSeq + (f - knownIdx);
+        s.uriToSeq[rawChunks[f].uri] = nextSeqVal;
+        rawChunks[f].seq = nextSeqVal;
+        if (typeof s.nextSeq !== 'number' || nextSeqVal >= s.nextSeq) s.nextSeq = nextSeqVal + 1;
+      }
+    } else {
+      if (typeof s.nextSeq !== 'number') s.nextSeq = 1000;
+      for (var n = 0; n < rawChunks.length; n++) {
+        var freshSeq = s.nextSeq++;
+        s.uriToSeq[rawChunks[n].uri] = freshSeq;
+        rawChunks[n].seq = freshSeq;
+      }
+    }
+    var chunks = rawChunks;
+    var sequence = chunks[0].seq;
+    var output=['#EXTM3U','#EXT-X-VERSION:3','#EXT-X-TARGETDURATION:'+Math.ceil(headDur),'#EXT-X-MEDIA-SEQUENCE:'+sequence];
+    for(var i=0;i<chunks.length;i++){
+      var chunk=chunks[i];s.map[chunk.seq]=chunk.uri;
+      if(chunk.discontinuity)output.push('#EXT-X-DISCONTINUITY');
+      output.push('#EXTINF:'+chunk.duration.toFixed(3)+',');output.push(MEDIA+'/seg/'+chunk.seq+'.ts');
+    }
+    if(!live)output.push('#EXT-X-ENDLIST');
+    // Don't keep thousands of obsolete segment URLs in TV memory.
+    var keys=Object.keys(s.map);if(keys.length>320){keys.sort(function(a,b){return Number(a)-Number(b)});for(var z=0;z<keys.length-260;z++)delete s.map[keys[z]];}
+    var uKeys=Object.keys(s.uriToSeq);if(uKeys.length>250){for(var u=0;u<uKeys.length-150;u++)delete s.uriToSeq[uKeys[u]];}
+    if(chunks.length>0){prefetchLiveSegments(s,chunks[0].seq,2);}
+    return {playlist:output.join('\n')+'\n',chunks:chunks,target:headDur,live:live};
+  }
+  function refresh(s){
+    var req=s.session.manifestRequest();return request(req,'text',s.abort.signal).then(function(text){
+      if(s.tr)s.tr('M3U8:' + text.slice(0, 150).replace(/\r?\n/g, ' '));
+      var data=mediaManifest(s,text,req.url);
+      if(data.variant){
+        var v=data.variant;
+        // Provider authorizes both the main manifest and its official variant URI.
+        return request(s.session.segmentRequest(v),'text',s.abort.signal).then(function(t){
+          if(s.tr)s.tr('VM3U8:' + t.slice(0, 150).replace(/\r?\n/g, ' '));
+          var p=mediaManifest(s,t,v);if(p.variant)throw Error('Manifest HLS anidado no compatible.');
+          return p;
+        });
+      }return data;
+    });
+  }
+  function getSegment(s,n){
+    var url=s.map[n];if(!url)return Promise.reject(Error('El fragmento '+n+' ya salió de la ventana de emisión.'));
+    prefetchLiveSegments(s,n+1,6);
+    if(s.segCache&&s.segCache[n]){
+      var c=s.segCache[n];
+      if(c instanceof ArrayBuffer)return Promise.resolve(c);
+      if(c&&typeof c.then==='function')return c;
+    }
+    var prom=request(s.session.segmentRequest(url),'arraybuffer',s.abort.signal,4).catch(function(err){
+      if(/401|403|token/i.test(err && err.message || '')){
+        return refreshWithSelfHeal(s).then(function(){
+          return request(s.session.segmentRequest(s.map[n]||url),'arraybuffer',s.abort.signal,3);
+        });
+      }
+      throw err;
+    }).then(function(buf){
+      return (w.XuperMediaUtils&&w.XuperMediaUtils.stripPngWrapper)?w.XuperMediaUtils.stripPngWrapper(buf):buf;
+    });
+    s.segCache=s.segCache||Object.create(null);
+    s.segOrder=s.segOrder||[];
+    s.segCache[n]=prom;
+    if(s.segOrder.indexOf(n)===-1)s.segOrder.push(n);
+    return prom;
+  }
+  function stats(){return{aborted:false,loaded:0,total:0,retry:0,chunkCount:0,bwEstimate:0,
+    loading:{start:0,first:0,end:0},parsing:{start:0,end:0},buffering:{start:0,first:0,end:0}};}
+  function now(){return w.performance&&w.performance.now?w.performance.now():Date.now();}
+  function LiveLoader(){this.stats=stats();this.aborted=false;this.controller=null;}
+  LiveLoader.prototype.destroy=function(){this.abort();};
+  LiveLoader.prototype.abort=function(){this.aborted=true;if(this.controller)this.controller.abort();};
+  LiveLoader.prototype.load=function(context,cfg,cb){
+    var self=this,s=playing,url=String(context.url||''),seq=/\/seg\/(\d+)\.ts/.exec(url);
+    self.stats.loading.start=now();
+    if(!s||url.indexOf(MEDIA)!==0){cb.onError({code:0,text:'URL HLS no controlada por Cactus Live'},context,null,self.stats);return;}
+    var task=seq?getSegment(s,Number(seq[1])):refresh(s).then(function(x){return x.playlist;});
+    task.then(function(data){if(self.aborted||playing!==s)return;
+      self.stats.loading.first=self.stats.loading.end=now();self.stats.loaded=self.stats.total=typeof data==='string'?data.length:data.byteLength;
+      self.stats.chunkCount=1;cb.onSuccess({url:url,data:data,code:200},self.stats,context,null);
+    }).catch(function(e){if(self.aborted||playing!==s)return;
+      s.phase=errorMessage(e);cb.onError({code:0,text:s.phase},context,null,self.stats);
+    });
+  };
+  function queueSB(sb,op){
+    if(!sb)return Promise.resolve();
+    if(!sb._queue)sb._queue=Promise.resolve();
+    sb._queue=sb._queue.then(function(){
+      return new Promise(function(resolve){
+        if(!sb.updating){
+          doOp();
+        }else{
+          var onWait=function(){sb.removeEventListener('updateend',onWait);doOp();};
+          sb.addEventListener('updateend',onWait);
+        }
+        function doOp(){
+          var timer=setTimeout(function(){
+            sb.removeEventListener('updateend',done);
+            sb.removeEventListener('error',bad);
+            resolve();
+          },8000);
+          function done(){
+            clearTimeout(timer);
+            sb.removeEventListener('updateend',done);
+            sb.removeEventListener('error',bad);
+            resolve();
+          }
+          function bad(){
+            clearTimeout(timer);
+            sb.removeEventListener('updateend',done);
+            sb.removeEventListener('error',bad);
+            resolve();
+          }
+          sb.addEventListener('updateend',done);
+          sb.addEventListener('error',bad);
+          try{op();}catch(e){clearTimeout(timer);sb.removeEventListener('updateend',done);sb.removeEventListener('error',bad);resolve();}
+        }
+      });
+    });
+    return sb._queue;
+  }
+  function append(sb,data){
+    if(!sb||!data)return Promise.resolve();
+    return queueSB(sb,function(){sb.appendBuffer(data);});
+  }
+  function trim(sb,time){
+    if(!sb||!sb.buffered.length||time<25)return Promise.resolve();
+    return queueSB(sb,function(){
+      try{
+        if(!sb.buffered.length)return;
+        var before=sb.buffered.start(0);
+        var until=Math.min(time-15,sb.buffered.end(0)-1);
+        if(until>before+2){
+          sb.remove(before,until);
+        }
+      }catch(_){}
+    });
+  }
+  function note(s,msg){s.phase=msg;if(!s.logs)s.logs=[];s.logs.push(msg);if(s.logs.length>10)s.logs.shift();var e=d.getElementById(statusId);if(e&&!e.hidden)e.textContent=msg;}
+  function render(s,title){
+    var p=d.getElementById('screen-player')||d.getElementById('player'),video=d.getElementById('player-video')||d.getElementById('video');
+    if(!p||!video)throw Error('No se encontró el reproductor del Samsung.');
+    p.hidden=false;p.classList.remove('is-mini');p.classList.add('cactus-live-15');p.classList.add('is-active');p.classList.remove('idle');
+    var spinner=d.getElementById('vspin');if(spinner)spinner.hidden=true;
+    d.documentElement.classList.add('modal-open');s.panel=p;s.video=video;
+    video.tabIndex=-1;try{video.blur();}catch(_){}
+    var t=d.getElementById('player-title');if(t)t.textContent=title||'TV en vivo';
+    if(!d.getElementById('cactus-live-15-style')){
+      var style=d.createElement('style');style.id='cactus-live-15-style';
+      style.textContent='#screen-player.cactus-live-15 #player-video,#player.cactus-live-15 #video{display:block!important;position:absolute!important;top:0!important;left:0!important;width:100%!important;height:100%!important;object-fit:contain;background:#000;z-index:5!important}'+
+       '#screen-player.cactus-live-15 .player-frame{display:none!important}'+
+       '#player.cactus-live-15 #player-ui{display:none!important}'+
+       '#cactus-live-status{position:absolute;bottom:40px;left:40px;z-index:30!important;color:#fff;font:bold 24px Arial,sans-serif;background:rgba(0,0,0,0.85);padding:12px 24px;border-radius:8px;border:2px solid #00e676;pointer-events:none}';
+      d.head.appendChild(style);
+    }
+    var label=d.getElementById(statusId);if(!label){label=d.createElement('div');label.id=statusId;p.appendChild(label);}
+    label.hidden=false;label.textContent='Sintonizando TV en vivo…';
+    s.label=label;
+    s.key=function(e){if(playing!==s)return;var k=e.keyCode||e.which;
+      if(typeof ke!=='undefined'&&ke.channelsOpen)return;
+      if(k===415||k===19){e.preventDefault();e.stopImmediatePropagation();
+        if(s.video.paused)s.video.play().catch(function(){});else s.video.pause();}
+    };
+    d.addEventListener('keydown',s.key,true);
+  }
+  function keepScreenOn() {
+    try {
+      if (w.webapis && w.webapis.appcommon && typeof w.webapis.appcommon.setScreenSaver === 'function') {
+        w.webapis.appcommon.setScreenSaver(w.webapis.appcommon.AppCommonScreenSaverState.SCREEN_SAVER_OFF, function(){}, function(){});
+      }
+    } catch(_) {}
+    try {
+      if (w.tizen && w.tizen.power && typeof w.tizen.power.request === 'function') {
+        w.tizen.power.request('SCREEN', 'SCREEN_NORMAL');
+      }
+    } catch(_) {}
+  }
+  function restoreScreenSaver() {
+    try {
+      if (w.webapis && w.webapis.appcommon && typeof w.webapis.appcommon.setScreenSaver === 'function') {
+        w.webapis.appcommon.setScreenSaver(w.webapis.appcommon.AppCommonScreenSaverState.SCREEN_SAVER_ON, function(){}, function(){});
+      }
+    } catch(_) {}
+    try {
+      if (w.tizen && w.tizen.power && typeof w.tizen.power.release === 'function') {
+        w.tizen.power.release('SCREEN');
+      }
+    } catch(_) {}
+  }
+  function stop(){
+    restoreScreenSaver();
+    var s=playing;playing=null;pending=null;ticket++;
+    if(!s)return;
+    if(s.statTimer)try{clearInterval(s.statTimer);}catch(_){}
+    s.stopped=true;if(s.abort)try{s.abort.abort();}catch(_){ }
+    if(s.key)d.removeEventListener('keydown',s.key,true);
+    if(s.hls)try{s.hls.destroy();}catch(_){ }
+    if(s.video){try{s.video.pause();s.video.removeAttribute('src');}catch(_){ }}
+    if(s.url)try{URL.revokeObjectURL(s.url);}catch(_){ }
+    if(s.segCache){s.segCache=null;s.segOrder=null;}
+    if(s.uriToSeq){s.uriToSeq=null;}
+    if(s.label)s.label.hidden=true;
+    if(s.panel){s.panel.classList.remove('cactus-live-15');}
+    d.documentElement.classList.remove('modal-open');
+  }
+  // Re-sintoniza el canal cuando el decodificador se queda clavado (sin avanzar)
+  // a pesar de tener datos en búfer: recrea la sesión y reinicia el MSE.
+  var recoverGate=0;
+  function recoverLive(s){
+    var item=s.rawItem;
+    if(!item)return;
+    var now=Date.now();
+    if(now-recoverGate<8000)return;
+    recoverGate=now;
+    var title=s.title;
+    console.warn('[LiveTV] Señal congelada detectada, re-sintonizando canal…');
+    note(s,'Señal congelada, re-sintonizando…');
+    stop();
+    prepare(item).then(function(info){
+      start(info,{title:title});
+    }).catch(function(e){
+      console.warn('[LiveTV] Re-sintonización falló:', errorMessage(e));
+      if(w.__onStreamError)w.__onStreamError('Canal no disponible temporalmente');
+    });
+  }
+  function waitPlaying(s,start){return new Promise(function(resolve,reject){
+    var finished=false,timer=setTimeout(function(){bad(Error('Tiempo de espera agotado'));},25000);
+    w.__trace = [];
+    function tr(msg){
+      if(!w.__trace)w.__trace=[];
+      w.__trace.push(Math.round(performance.now())+' '+msg);
+      if(w.__trace.length>15)w.__trace.shift();
+    }
+    s.tr = tr;
+    function clear(keepErr){clearTimeout(timer);if(s.video){s.video.removeEventListener('playing',good);if(!keepErr)s.video.removeEventListener('error',badEvent);}}
+    function good(){
+      if(finished)return;finished=true;clear(true);
+      note(s,'● EN VIVO');
+      if(w.__onStreamPlaying)w.__onStreamPlaying();
+      if(s.statTimer)clearInterval(s.statTimer);
+      s.statTimer=setInterval(function(){
+        if(playing!==s||!s.video||!s.label)return;
+        var ct=s.video.currentTime||0;
+        var vw=s.video.videoWidth||0, vh=s.video.videoHeight||0;
+        var b=s.video.buffered;
+        var bufLen=b&&b.length?(b.end(b.length-1)-ct).toFixed(1):'0';
+        s.label.hidden=false;
+        s.label.textContent='● EN VIVO '+(s.title||'')+' | '+vw+'x'+vh+' | '+ct.toFixed(1)+'s (buf +'+bufLen+'s)';
+        // Detección de congelamiento: reproduciendo pero el tiempo no avanza
+        // pese a tener datos por delante -> decodificador clavado.
+        if(!s.video.paused && ct>0 && b && b.length && (b.end(b.length-1)-ct)>0.5){
+          if(typeof s._lastCt==='number' && ct<=s._lastCt+0.05){
+            s._stallTicks=(s._stallTicks||0)+1;
+            if(s._stallTicks===3 || s._stallTicks===6){
+              try{
+                var nudge=0.08*(s._stallTicks===6?2:1);
+                var target=Math.min(b.end(b.length-1)-0.1, s.video.currentTime+nudge);
+                s.video.currentTime=target;
+                if(s.video.paused)s.video.play().catch(function(){});
+              }catch(_){}
+            }else if(s._stallTicks>=12){
+              s._stallTicks=0; recoverLive(s);
+            }
+          }else{
+            s._stallTicks=0; s._lastCt=ct;
+          }
+        }else{
+          s._stallTicks=0;
+        }
+      },500);
+      resolve();
+    }
+    function badEvent(ev){
+      if(!playing||playing!==s||s.stopped)return;
+      var ve = s.video && s.video.error;
+      if(!s.video || !s.video.currentSrc || (ve && ve.code === 4 && (!s.video.src || s.video.src === ''))) return;
+      var c = ve ? ve.code : 0;
+      var m = ve ? (ve.message || '') : '';
+      if(s.onAudioFallback && s.hasAudio && !s.noAudio){
+        finished=true;clear(false);
+        s.noAudio=true;w.__mseNoAudio=true;
+        console.warn('[LiveTV] Audio MSE rechazado (err '+c+'), reintentando en modo solo-video');
+        s.onAudioFallback().then(resolve,reject);
+        return;
+      }
+      if(finished)return;
+      var info = 'rs=' + (s.video?s.video.readyState:'?') + ' ns=' + (s.video?s.video.networkState:'?') + ' ct=' + (s.video?s.video.currentTime.toFixed(2):'?');
+      var tStr = (w.__trace||[]).slice(-7).join(' || ');
+      bad(Error('vErr ' + c + ': ' + m + ' (' + info + ') [' + tStr + ']'));
+    }
+    function bad(err){if(finished)return;finished=true;clear();stop();
+      var em = (err && err.message ? err.message : 'Canal no disponible por el momento');
+      if(w.__onStreamError)w.__onStreamError(em);
+      reject(err);
+    }
+    s.rejectStart=bad;
+    s.video.addEventListener('playing',good);s.video.addEventListener('error',badEvent);
+    ['loadstart','loadedmetadata','loadeddata','canplay','waiting','stalled','seeked'].forEach(function(evt){
+      s.video.addEventListener(evt,function(){tr('vid:'+evt);},{once:true});
+    });
+    Promise.resolve().then(start).catch(bad);
+  });}
+  function liveMSEStart(s,first,segno,preparsed){
+    var parsed=preparsed||w.CactusFmp4.demux(new Uint8Array(first));
+    var v=parsed.video,a=(!s.noAudio&&!w.__mseNoAudio&&parsed.audio)?parsed.audio[0]:null;
+    if(!v||!(/^hvc1\./.test(v.codec)||/^avc1\./.test(v.codec)))throw Error('Canal sin pista de vídeo compatible.');
+    var mimeV='video/mp4; codecs="'+v.codec+'"',mimeA=a?'audio/mp4; codecs="'+a.codec+'"':null;
+    if(!MS||!MS.isTypeSupported(mimeV))throw Error('Este Samsung no admite el códec de vídeo ('+v.codec+') a través de MSE.');
+    if(a&&!MS.isTypeSupported(mimeA)){a=null;mimeA=null;}
+    s.hasAudio=!!a;
+    s.onAudioFallback=function(){
+      if(s.url)try{URL.revokeObjectURL(s.url);}catch(_){}
+      return liveMSEStart(s,first,segno,preparsed);
+    };
+    var ms=new MS();s.ms=ms;s.url=URL.createObjectURL(ms);s.video.src=s.url;
+    return waitPlaying(s,function(){return new Promise(function(resolve,reject){
+      ms.addEventListener('sourceopen',function(){
+        if(s.stopped||playing!==s||s.ms!==ms||ms.readyState!=='open')return;
+        var vb=ms.addSourceBuffer(mimeV),ab=a?ms.addSourceBuffer(mimeA):null;
+        append(vb,w.CactusFmp4.initSegment(v)).then(function(){
+          return (ab&&a)?append(ab,w.CactusFmp4.initSegment(a)):null;
+        }).then(function(){
+          if(s.stopped||playing!==s||s.ms!==ms)return;
+          var videoOrigin=v.samples[0].dts, audioOrigin=(ab&&a)?a.samples[0].dts:0, hints={video:{params:v.params,sps:v.sps}},seq=1,done={};
+          done[segno]=true;
+          note(s,'Transmitiendo señal en vivo…');
+          var appV=append(vb,w.CactusFmp4.mediaSegment(v,seq,0));
+          var appA=(ab&&a&&a.samples.length)?appV.then(function(){
+            return append(ab,w.CactusFmp4.mediaSegment(a,seq,Math.max(0,Math.round(a.samples[0].dts-audioOrigin))));
+          }):appV;
+          return appA.then(function(){
+            if(s.stopped||playing!==s||s.ms!==ms)return;
+            seq++;
+            try{s.video.play().catch(function(){});}catch(_){}
+            function liveStep(){
+              if(s.stopped||playing!==s||s.ms!==ms)return;
+              refresh(s).then(function(info){
+                var pieces=info.chunks;
+                function processChunk(n){
+                  if(n>=pieces.length||s.stopped||playing!==s||s.ms!==ms){
+                    if(s.stopped||playing!==s||s.ms!==ms)return;
+                    setTimeout(liveStep,Math.min(3000,Math.max(800,info.target*300)));
+                    return;
+                  }
+                  var item=pieces[n],key=item.seq;
+                  if(key<=segno||done[key]){
+                    return processChunk(n+1);
+                  }
+                  done[key]=true;
+                  getSegment(s,key).then(function(part){
+                    if(s.stopped||playing!==s||s.ms!==ms)return;
+                    var mp4=w.CactusFmp4.demux(new Uint8Array(part),hints);
+                    var video=mp4.video,audio=(ab&&mp4.audio)?mp4.audio[0]:null;
+                    if(!video||!video.samples.length)return processChunk(n+1);
+                    if(video.codec!==v.codec)throw Error('El canal cambió de códec de vídeo durante la emisión.');
+                    hints={video:{params:video.params,sps:video.sps}};
+                    var tbase=Math.max(0,Math.round(video.samples[0].dts-videoOrigin));
+                    var appV2=append(vb,w.CactusFmp4.mediaSegment(video,seq,tbase));
+                    var appA2=(ab&&audio&&audio.samples.length)?appV2.then(function(){
+                      return append(ab,w.CactusFmp4.mediaSegment(audio,seq,Math.max(0,Math.round(audio.samples[0].dts-audioOrigin))));
+                    }):appV2;
+                    return appA2.then(function(){
+                      seq++;
+                      if(s.segCache)delete s.segCache[key];
+                      return trim(vb,s.video.currentTime).then(function(){
+                        return ab?trim(ab,s.video.currentTime):null;
+                      });
+                    }).then(function(){
+                      function waitLiveDrain(){
+                        if(s.stopped||playing!==s||s.ms!==ms||!s.video.buffered.length||s.video.buffered.end(s.video.buffered.length-1)-s.video.currentTime<=30){
+                          return processChunk(n+1);
+                        }
+                        setTimeout(waitLiveDrain,300);
+                      }
+                      waitLiveDrain();
+                    });
+                  }).catch(function(err){
+                    if(s.tr)s.tr('chunkErr('+key+'):'+err.message);
+                    processChunk(n+1);
+                  });
+                }
+                processChunk(0);
+              }).catch(function(rErr){
+                if(s.tr)s.tr('refErr:'+rErr.message);
+                if(!s.stopped&&playing===s&&s.ms===ms)setTimeout(liveStep,2000);
+              });
+            }
+            liveStep();
+          });
+        }).catch(reject);
+      },{once:true});
+    });});
+  }
+  function h264Start(s){
+    if(!w.Hls||!w.Hls.isSupported())return Promise.reject(Error('Hls.js/MSE no está disponible para este canal.'));
+    return waitPlaying(s,function(){
+      var h=new w.Hls({loader:LiveLoader,enableWorker:false,lowLatencyMode:false,
+        maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:20,liveSyncDurationCount:6,
+        liveMaxLatencyDurationCount:16,maxLiveSyncPlaybackRate:1.0,manifestLoadingTimeOut:15000,
+        manifestLoadingMaxRetry:5,manifestLoadingRetryDelay:500,fragLoadingTimeOut:20000,
+        fragLoadingMaxRetry:5,fragLoadingRetryDelay:500,nudgeOffset:0.1,nudgeMaxRetry:5,
+        liveDurationInfinity:true,highBufferWatchdogPeriod:2});
+      s.hls=h;
+      h.on(w.Hls.Events.ERROR,function(e,data){
+        var d = data ? (data.details || data.type || 'err') : 'err';
+        if(s.tr)s.tr('hlsErr:'+d);
+        if(data&&data.fatal){
+          switch(data.type){
+            case w.Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn('[LiveTV] Error de red fatal Hls.js, reanudando carga...', d);
+              try{h.startLoad();}catch(_){}
+              break;
+            case w.Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn('[LiveTV] Error multimedia fatal Hls.js, recuperando...', d);
+              try{h.recoverMediaError();}catch(_){}
+              break;
+            default:
+              console.error('[LiveTV] Error Hls.js no recuperable:', d);
+              if(s.rejectStart)s.rejectStart(Error('Error de señal en directo: '+d));
+              else recoverLive(s);
+              break;
+          }
+        }
+      });
+      h.on(w.Hls.Events.MEDIA_ATTACHED,function(){
+        if(s.tr)s.tr('hls:attached');
+        h.loadSource(MEDIA+'/playlist.m3u8');
+      });
+      h.on(w.Hls.Events.MANIFEST_PARSED,function(){
+        if(s.tr)s.tr('hls:parsed');
+        if(s.video)s.video.play().catch(function(e){if(s.tr)s.tr('playErr:'+e.message);});
+      });
+      h.on(w.Hls.Events.FRAG_PARSED,function(ev,data){
+        var es=data&&data.frag&&data.frag.elementaryStreams;
+        var aInfo=es&&es.audio?(es.audio.startPTS.toFixed(1)+'-'+es.audio.endPTS.toFixed(1)):'noA';
+        var vInfo=es&&es.video?(es.video.startPTS.toFixed(1)+'-'+es.video.endPTS.toFixed(1)):'noV';
+        if(s.tr)s.tr('FP:A('+aInfo+') V('+vInfo+')');
+      });
+      h.on(w.Hls.Events.BUFFER_CREATED,function(){if(s.tr)s.tr('hls:bufCreate');});
+      h.on(w.Hls.Events.BUFFER_APPENDED,function(ev,data){
+        var type=data?data.type:'?';
+        var b=s.video&&s.video.buffered;
+        var bInfo=b&&b.length?'['+b.start(0).toFixed(1)+'-'+b.end(0).toFixed(1)+']':'none';
+        if(s.tr)s.tr('app('+type+','+bInfo+')');
+      });
+      h.attachMedia(s.video);
+    });
+  }
+  function refreshWithSelfHeal(s){
+    return refresh(s).catch(function(firstErr){
+      if(s.stopped||playing!==s)throw firstErr;
+      note(s,'Renovando señal del canal…');
+      return direct.connect().then(function(c){
+        var liveProm=s.channelCode?c.live.getLiveData({columnId:76182}).catch(function(){return null;}):Promise.resolve(null);
+        return Promise.all([liveProm,c.stream.getSlbInfo({forceRefresh:true})]).then(function(res){
+          if(s.stopped||playing!==s)throw firstErr;
+          var liveData=res[0],slb=res[1],freshItem=null;
+          if(liveData&&Array.isArray(liveData.channelList)&&s.channelCode){
+            for(var i=0;i<liveData.channelList.length;i++){
+              if(liveData.channelList[i].channelCode===s.channelCode){freshItem=liveData.channelList[i];break;}
+            }
+          }
+          if(freshItem&&freshItem.liveAddressList&&freshItem.liveAddressList.length){
+            s.session=c.stream.createCflSession('live',freshItem,slb);
+          }else if(s.rawItem){
+            s.session=c.stream.createCflSession('live',s.rawItem,slb);
+          }
+          return refresh(s);
+        });
+      }).catch(function(){throw firstErr;});
+    });
+  }
+  function start(s,opt){
+    stop();keepScreenOn();playing=s;s.abort=new AbortController();s.map={};s.stopped=false;
+    s.segCache=Object.create(null);s.segOrder=[];s.uriToSeq=Object.create(null);s.nextSeq=1000;
+    s.title=(opt&&opt.title)||s.title||'TV en vivo';
+    s._lastCt=null;s._stallTicks=0;
+    render(s,s.title);
+    note(s,'Conectando con el canal real…');
+    return refreshWithSelfHeal(s).then(function(info){
+      var chunks=info.chunks,startIdx=chunks.length>6?chunks.length-6:(chunks.length>3?chunks.length-3:0),first=chunks[startIdx];
+      if(!first)throw Error('El canal no entregó segmentos disponibles.');
+      return getSegment(s,first.seq).then(function(bytes){
+        if(playing!==s)throw Error('Sintonización cancelada.');
+        var result=null,finalBytes=bytes,finalSeq=first.seq;
+        if(w.CactusFmp4&&bytes.byteLength>=376){try{result=w.CactusFmp4.demux(new Uint8Array(bytes));}catch(e){}}
+        var nextChunk=(!result||!result.video)?(chunks[startIdx+1]||chunks[startIdx-1]||null):null;
+        var nextProm=nextChunk?getSegment(s,nextChunk.seq).then(function(bytes2){
+          var u1=new Uint8Array(bytes),u2=new Uint8Array(bytes2);
+          var comb=new Uint8Array(u1.length+u2.length);
+          if(nextChunk.seq>first.seq){comb.set(u1,0);comb.set(u2,u1.length);finalSeq=nextChunk.seq;}
+          else{comb.set(u2,0);comb.set(u1,u2.length);finalSeq=first.seq;}
+          finalBytes=comb.buffer;
+          try{result=w.CactusFmp4.demux(comb);}catch(e){console.warn('[LiveTV demux2 err]',e.message);}
+        }).catch(function(){}):Promise.resolve();
+        return nextProm.then(function(){
+          if(playing!==s)throw Error('Sintonización cancelada.');
+          if(result&&result.video&&/^hvc1\./.test(result.video.codec)){
+            console.log('[LiveTV] MSE Direct HEVC codec:', result.video.codec, 'vSamples:', result.video.samples.length, 'aTracks:', result.audio?result.audio.length:0);
+            note(s,'Canal HEVC: preparando MSE directo…');
+            return liveMSEStart(s,finalBytes,finalSeq,result);
+          }
+          console.log('[LiveTV] Using Hls.js engine (h264Start)');
+          note(s,'Iniciando reproducción…');return h264Start(s);
+        });
+      });
+    }).catch(function(err){if(s.stopped||playing!==s||(err&&err.name==='AbortError'))return;var message=errorMessage(err);console.error('[LiveTV start err]',message);stop();if(w.__onStreamError)w.__onStreamError(message);throw Error('TV en vivo: '+message);});
+  }
+  function prepare(item){
+    if(!isLive(item))return Promise.reject(Error('Este elemento no contiene una transmisión en vivo.'));
+    return direct.connect().then(function(c){
+      if(!c.stream||typeof c.stream.getSlbInfo!=='function'||typeof c.stream.createCflSession!=='function')
+        throw Error('No está disponible el módulo de transmisión original.');
+      return c.stream.getSlbInfo().then(function(slb){
+        var session=c.stream.createCflSession('live',item,slb);
+        if(!session||!session.manifestRequest||!session.segmentRequest)throw Error('El proveedor no concedió una sesión multimedia utilizable.');
+        return {session:session,map:{},title:item.name||item.title||'TV en vivo',channelCode:item.channelCode||'',rawItem:item};
+      });
+    });
+  }
+  direct.http=function(method,args){
+    if(method!=='play'||!args||!isLive(args[0]))return oldHttp(method,args);
+    var my=++ticket;
+    return prepare(args[0]).then(function(info){
+      if(my!==ticket)throw Error('Cambio de canal cancelado.');
+      pending=info;
+      return {ok:true,json:function(){return Promise.resolve({data:{kind:'live',engine:'cactus-live-15',url:''}});}};
+    },function(err){return {ok:false,json:function(){return Promise.resolve({error:errorMessage(err)});}};});
+  };
+  av.start=function(opts){
+    if(opts&&opts.engine==='cactus-live-15'){
+      if(!pending)return Promise.reject(Error('No se recibió la sesión de TV en vivo.'));
+      var info=pending;pending=null;return start(info,opts);
+    }
+    stop();return oldStart.call(av,opts);
+  };
+  av.stop=function(){stop();return oldStop.call(av);};
+  w.CactusLiveTV={version:'2.0.25',start:start,stop:stop,active:function(){return !!playing;},parseManifest:mediaManifest};
+})(window,document);

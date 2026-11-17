@@ -1,0 +1,11 @@
+.ota-secret
+Debug/
+Release/
+.build/
+.buildResult/
+*.wgt
+*.tpk
+*.p12
+*.pem
+.DS_Store
+node_modules/
