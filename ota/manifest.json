@@ -1,10 +1,10 @@
 {
-  "rev": 2,
-  "version": "3.0.0-ota2",
+  "rev": 3,
+  "version": "3.0.0-ota3",
   "minBaseRev": 1,
-  "bundle": "bundle-2.json",
-  "sha256": "c4b0771c8b0f298264e40c26664c93ac10d381ecb29a38e3ce835297ddaf06fd",
-  "sig": "877cf5ab3c131ce9d6b08c464bc7571e",
-  "notes": "Fix ESPN/playlatam directo sin Cloudflare (User-Agent + X-Cred)",
-  "updatedAt": "2026-11-17T22:32:35.894Z"
+  "bundle": "bundle-3.json",
+  "sha256": "0b4d8144385566406fc580cc9a6bf8e621452f7bac02a6da7848d98c08b390cb",
+  "sig": "1e49fcc218ab84d8643217ed5a51fd91",
+  "notes": "Fix Eventos En Vivo (/menu X-Cred, /canales Dalvik UA, filtrar liveland.af 403)",
+  "updatedAt": "2026-11-17T23:02:29.965Z"
 }

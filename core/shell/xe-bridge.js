@@ -507,27 +507,35 @@
     var ORIG_USER_AGENT = w.__xeOrigUserAgent || (typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '');
     if (!w.__xeOrigUserAgent && ORIG_USER_AGENT) w.__xeOrigUserAgent = ORIG_USER_AGENT;
     var EPIC_MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+    var EPIC_DALVIK_UA = 'Dalvik/2.1.0 (Linux; U; Android 13; SM-G991B Build/TP1A.220624.014)';
     var __xeEpicUaPromise = null;
+    var __xeEpicUaMode = '';
 
     function isEpicBlockedHost(url) {
       return /playlatam\.site|epictvparaiphone\.top|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221/i.test(String(url || ''));
     }
 
-    function ensureEpicUserAgent() {
+    function ensureEpicUserAgent(mode) {
+      var targetMode = mode === 'dalvik' ? 'dalvik' : 'iphone';
+      var targetUa = targetMode === 'dalvik' ? EPIC_DALVIK_UA : EPIC_MOBILE_UA;
       try {
         var curUa = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
-        if (/iPhone|iPad/i.test(curUa) && !/SMART-TV|Tizen/i.test(curUa)) {
+        if (targetMode === 'dalvik' && /^Dalvik\//i.test(curUa)) {
           return Promise.resolve(true);
         }
-        if (__xeEpicUaPromise) return __xeEpicUaPromise;
+        if (targetMode === 'iphone' && /iPhone|iPad/i.test(curUa) && !/SMART-TV|Tizen/i.test(curUa)) {
+          return Promise.resolve(true);
+        }
+        if (__xeEpicUaPromise && __xeEpicUaMode === targetMode) return __xeEpicUaPromise;
         if (w.tizen && w.tizen.websetting && typeof w.tizen.websetting.setUserAgentString === 'function') {
+          __xeEpicUaMode = targetMode;
           __xeEpicUaPromise = new Promise(function (resolve) {
             var done = false;
             var tm = setTimeout(function () {
               if (!done) { done = true; __xeEpicUaPromise = null; resolve(false); }
             }, 1200);
             try {
-              w.tizen.websetting.setUserAgentString(EPIC_MOBILE_UA, function () {
+              w.tizen.websetting.setUserAgentString(targetUa, function () {
                 if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(true); }
               }, function () {
                 if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(false); }
@@ -715,7 +723,8 @@
       if (isTizen3Device() && relay && typeof relay.wrapPortalRequest === 'function') {
         return execOnce(targetUrl, true, '');
       }
-      var uaReady = isEpicBlockedHost(targetUrl) ? ensureEpicUserAgent() : Promise.resolve(true);
+      var uaMode = /\/canales(\?|$)/i.test(String(targetUrl || '')) && !/\/iphone\//i.test(String(targetUrl || '')) ? 'dalvik' : 'iphone';
+      var uaReady = isEpicBlockedHost(targetUrl) ? ensureEpicUserAgent(uaMode) : Promise.resolve(true);
       return uaReady.then(function () {
         if (/^https:\/\/playlatam\.site(\/|$)/i.test(String(targetUrl || ''))) {
           var mirrors = getOrderedPortalMirrors();
@@ -957,7 +966,8 @@
     function isPortalDashOrDead(url, cdn) {
       var u = String(url || '').trim();
       if (!/^https?:\/\//i.test(u)) return true;
-      if (/youtube\.com|youtu\.be|\.mpd(\?|$)|tvf90\.com/i.test(u)) return true;
+      if (w.__xeDeadUrls && w.__xeDeadUrls[u]) return true;
+      if (/youtube\.com|youtu\.be|\.mpd(\?|$)|tvf90\.com|stream1\.liveland\.af/i.test(u)) return true;
       if (/teledeportes\.st|rdcanais\.org/i.test(u)) {
         var cNorm = String(cdn || '').trim();
         if (/^(prime\s*video|zapitv|telia)$/i.test(cNorm) ||
@@ -1906,9 +1916,11 @@
           if (sysTz && /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)*$/.test(sysTz)) tz = sysTz;
         } catch (_) {}
         var menuUrl = 'https://playlatam.site/menu?all=1&recetas=aparte&agenda=propia&v=9999&tz=' + encodeURIComponent(tz) + '&idioma=es';
+        var menuHdrs = { 'Accept': 'application/json', 'X-Cred': PORTAL_CRED };
+        if (tok) menuHdrs['X-Pulsera'] = tok;
         return Promise.all([
           fetchEpicSportsChannels().catch(function () { return mergeEpicChannels(null); }),
-          epicFetch(menuUrl, 'GET', { 'Accept': 'application/json', 'X-Pulsera': tok }, 7500).catch(function () { return { events: [] }; }),
+          epicFetch(menuUrl, 'GET', menuHdrs, 7500).catch(function () { return { events: [] }; }),
           fetchHelloHowLiveEvents().catch(function () { return []; }),
           fetchStreamTpChannels().catch(function () { return []; }),
           fetchKsdChannels().catch(function () { return []; }),
@@ -2748,6 +2760,12 @@
           };
           return fetchOnce(false).catch(function (err) {
             var msg = String(err && err.message || '');
+            if (/HTTP\s+(403|404|410)/i.test(msg)) {
+              try {
+                w.__xeDeadUrls = w.__xeDeadUrls || {};
+                w.__xeDeadUrls[checkUrl] = Date.now();
+              } catch (_) {}
+            }
             if (/HTTP\s+(404|410|451|5\d\d)|Manifiesto no v/i.test(msg)) throw err;
             if (/HTTP\s+4\d\d/i.test(msg) && !(hasCustomHdrs && /403/.test(msg))) throw err;
             return allowBypassIfBrowserBlocked(err);
