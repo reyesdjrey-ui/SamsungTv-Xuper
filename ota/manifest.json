@@ -1,10 +1,10 @@
 {
-  "rev": 6,
-  "version": "3.0.0-ota6",
+  "rev": 7,
+  "version": "3.0.0-ota7",
   "minBaseRev": 1,
-  "bundle": "bundle-6.json",
-  "sha256": "0971bfbfee685eaca17e3ff8eaee641c4a19116d17fd091ec0c254aadf8d8a04",
-  "sig": "8729bdf904f34137579eaa560b00c9af",
-  "notes": "Badge visual OTA rev + modo LEGACY/SEC en experimentos",
-  "updatedAt": "2026-11-18T00:02:33.644Z"
+  "bundle": "bundle-7.json",
+  "sha256": "f7a0bd52e87887939bda3a7e4432503801cbdac0d8f1354ac7afcc40e0156cb1",
+  "sig": "dda2c98aaef94a2055ea9f562bf6c6f3",
+  "notes": "Adaptive UI Smoothness Tiers (legacy/mid/modern) + throttle + Ja cap",
+  "updatedAt": "2026-11-18T00:36:35.509Z"
 }

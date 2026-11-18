@@ -5671,3 +5671,98 @@ body.cactus-av-active #player-stage,
   box-sizing: border-box !important;
 }
 
+
+/* ============================================================================
+ * Adaptive UI Smoothness Tiers (Tizen OS 3.0-4.0 / 5.0-7.5 / 8.0-10.0)
+ * ============================================================================ */
+
+/* Base: liberar VRAM evitando capas will-change permanentes en tarjetas inactivas */
+.focusable {
+  will-change: auto !important;
+}
+.focusable.is-focused {
+  will-change: transform;
+}
+.live-row,
+.pc-row,
+.rail-card,
+.bento {
+  contain: layout style;
+}
+
+/* Tier Legacy (Tizen 3.0 - 4.0): 0ms foco, sin blur, sin sombras pesadas ni animacion 1920px */
+html.xe-tier-legacy *,
+html.xe-tier-legacy *::before,
+html.xe-tier-legacy *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html.xe-tier-legacy .focusable,
+html.xe-tier-legacy .home-tab,
+html.xe-tier-legacy .live-row,
+html.xe-tier-legacy .pc-row,
+html.xe-tier-legacy .pc-cat-pill,
+html.xe-tier-legacy .rail-card,
+html.xe-tier-legacy .bento,
+html.xe-tier-legacy .home-tabs,
+html.xe-tier-legacy .home-sidebar-bg {
+  -webkit-transition: none !important;
+  transition: none !important;
+  -webkit-animation: none !important;
+  animation: none !important;
+  will-change: auto !important;
+}
+html.xe-tier-legacy .home-page {
+  -webkit-animation: none !important;
+  animation: none !important;
+}
+html.xe-tier-legacy .focusable.is-focused {
+  box-shadow: 0 0 0 3px #22c55e !important;
+}
+html.xe-tier-legacy #player-channels,
+html.xe-tier-legacy .pc-panel,
+html.xe-tier-legacy .player-info,
+html.xe-tier-legacy .home-sidebar-bg,
+html.xe-tier-legacy .lcs-overlay {
+  background: rgba(8, 12, 22, 0.96) !important;
+}
+
+/* Tier Mid-Gen (Tizen 5.0 - 7.5): sin blur sobre video, solo transiciones transform/opacity */
+html.xe-tier-mid #player-channels,
+html.xe-tier-mid .pc-panel,
+html.xe-tier-mid .player-info,
+html.xe-tier-mid .home-sidebar-bg,
+html.xe-tier-mid .lcs-overlay,
+html.xe-tier-mid .modal,
+html.xe-tier-mid .dialog {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: rgba(8, 12, 22, 0.93) !important;
+}
+html.xe-tier-mid .focusable,
+html.xe-tier-mid .live-row,
+html.xe-tier-mid .pc-row,
+html.xe-tier-mid .pc-cat-pill,
+html.xe-tier-mid .rail-card,
+html.xe-tier-mid .bento {
+  -webkit-transition: -webkit-transform 0.12s ease-out, opacity 0.12s ease-out !important;
+  transition: transform 0.12s ease-out, opacity 0.12s ease-out !important;
+}
+html.xe-tier-mid .focusable.is-focused {
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.92), 0 6px 14px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Tier Modern (Tizen 8.0 - 10.0): efectos completos + contencion de pintado y GPU-only transitions */
+html.xe-tier-modern .live-row,
+html.xe-tier-modern .pc-row,
+html.xe-tier-modern .rail-card,
+html.xe-tier-modern .bento {
+  contain: layout style paint;
+}
+html.xe-tier-modern .rail-card,
+html.xe-tier-modern .bento,
+html.xe-tier-modern .live-row,
+html.xe-tier-modern .pc-row,
+html.xe-tier-modern .pc-cat-pill {
+  transition: transform 0.16s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.16s ease !important;
+}

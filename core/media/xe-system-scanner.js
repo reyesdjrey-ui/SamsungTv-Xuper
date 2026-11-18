@@ -5,8 +5,23 @@
 (function (w, d) {
   'use strict';
 
+  function applyTierClass(tier) {
+    try {
+      var cls = 'xe-tier-' + (tier || 'mid');
+      var root = d && d.documentElement;
+      if (root && root.classList) {
+        root.classList.remove('xe-tier-legacy', 'xe-tier-mid', 'xe-tier-modern');
+        root.classList.add(cls);
+      }
+      if (d && d.body && d.body.classList) {
+        d.body.classList.remove('xe-tier-legacy', 'xe-tier-mid', 'xe-tier-modern');
+        d.body.classList.add(cls);
+      }
+    } catch (_) {}
+  }
+
   function detectSystem() {
-    var ua = (w.navigator && w.navigator.userAgent) ? String(w.navigator.userAgent) : '';
+    var ua = (w.__xeOrigUserAgent || (w.navigator && w.navigator.userAgent)) ? String(w.__xeOrigUserAgent || w.navigator.userAgent) : '';
     var platform = (w.navigator && w.navigator.platform) ? String(w.navigator.platform) : '';
 
     // 1. Detectar versión de Tizen OS
@@ -134,12 +149,18 @@
     engineProfile.userAgent = ua;
 
     w.XuperEngineConfig = engineProfile;
+    applyTierClass(engineProfile.tier);
     console.log('[XuperSystemScanner v2.1.0] Sistema detectado: Tizen ' + tizenVersion +
       ' (Chromium ' + chromiumMajor + ') -> Cargando ' + engineProfile.name + ' [' + engineProfile.id + ']');
     return engineProfile;
   }
 
   var activeProfile = detectSystem();
+  if (d && d.addEventListener && !d.body) {
+    d.addEventListener('DOMContentLoaded', function () {
+      applyTierClass(activeProfile && activeProfile.tier);
+    }, false);
+  }
 
   // Desbloqueador global de AudioContext para políticas Autoplay en Tizen 7.0 / 8.0 / 9.0 / 10.0
   function unlockGlobalAudio() {
