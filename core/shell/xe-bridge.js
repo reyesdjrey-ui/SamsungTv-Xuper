@@ -4021,4 +4021,24 @@
     clearCaches: function() { clearAllCaches(true); }
   };
 
+  try {
+    setTimeout(function () {
+      try {
+        var ver = (w.XuperOTA && w.XuperOTA.BASE_VERSION) || '3.0.0';
+        var stRaw = w.localStorage && w.localStorage.getItem('xuper.ota.boot_state');
+        var rev = 0;
+        if (stRaw) { try { rev = JSON.parse(stRaw).rev || 0; } catch (_) {} }
+        var mode = (w.XuperConfig && w.XuperConfig.isSecActive && w.XuperConfig.isSecActive()) ? 'SEC' : 'LEGACY';
+        var el = d.getElementById('xe-ota-debug-badge');
+        if (!el && d.body) {
+          el = d.createElement('div');
+          el.id = 'xe-ota-debug-badge';
+          el.style.cssText = 'position:fixed;bottom:10px;right:16px;z-index:99999;font:600 13px/1.2 sans-serif;color:rgba(255,255,255,.78);background:rgba(0,0,0,.55);padding:4px 10px;border-radius:6px;pointer-events:none;';
+          d.body.appendChild(el);
+        }
+        if (el) el.textContent = 'v' + ver + ' · ota' + rev + ' · ' + mode;
+      } catch (_) {}
+    }, 2500);
+  } catch (_) {}
+
 })(window, document);

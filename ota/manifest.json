@@ -1,10 +1,10 @@
 {
-  "rev": 5,
-  "version": "3.0.0-ota5",
+  "rev": 6,
+  "version": "3.0.0-ota6",
   "minBaseRev": 1,
-  "bundle": "bundle-5.json",
-  "sha256": "29c1a1a2bcc264473424ad14b51ad6262731d0fac1bdef4fc95e440af44b7d76",
-  "sig": "0db326855fc86e7331a223e0c0808edb",
-  "notes": "Experimento Tizen 3.0 hibrido (0 CF directo + failover SEC)",
-  "updatedAt": "2026-11-17T23:56:42.619Z"
+  "bundle": "bundle-6.json",
+  "sha256": "0971bfbfee685eaca17e3ff8eaee641c4a19116d17fd091ec0c254aadf8d8a04",
+  "sig": "8729bdf904f34137579eaa560b00c9af",
+  "notes": "Badge visual OTA rev + modo LEGACY/SEC en experimentos",
+  "updatedAt": "2026-11-18T00:02:33.644Z"
 }
