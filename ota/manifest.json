@@ -1,10 +1,10 @@
 {
-  "rev": 8,
-  "version": "3.0.0-ota8",
+  "rev": 9,
+  "version": "3.0.0-ota9",
   "minBaseRev": 1,
-  "bundle": "bundle-8.json",
-  "sha256": "fcad66ab7ff8fe8f513bd77c28f03b3a8e52695f08ffa942fd220e028cbd4b21",
-  "sig": "e3bdc4e41ec7e95d7cea54109cd252ed",
-  "notes": "Actualizacion OTA rev 8",
-  "updatedAt": "2026-11-18T01:23:42.725Z"
+  "bundle": "bundle-9.json",
+  "sha256": "c6c8688b05528b28026bb85f26568c3ce62aea8860f7d298de043d1ae0df6f6d",
+  "sig": "c9e9f7c40b5a076a2c36a323dfeeb2e1",
+  "notes": "Actualizacion OTA rev 9",
+  "updatedAt": "2026-11-18T04:44:21.678Z"
 }

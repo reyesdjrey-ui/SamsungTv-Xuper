@@ -226,34 +226,59 @@
     return /18\+|\+18|xxx|playboy|venus|hustler|sextreme|penthouse|redlight|brazzers|dorcel|tokyo hot|heyzo|carib|1pon|nyokei|cr_sexy/i.test(s);
   };
 
+  function normalizePortalChannelList(list, seenCodes) {
+    var out = [];
+    var seen = seenCodes || {};
+    for (var i = 0; i < (list || []).length; i++) {
+      var c = list[i];
+      if (!c || isAdultChannel(c) || !Array.isArray(c.liveAddressList) || !c.liveAddressList.length) continue;
+      if (c.channelCode && seen[c.channelCode]) continue;
+      if (c.channelCode) seen[c.channelCode] = true;
+      channelCache[c.channelCode] = c;
+      out.push({
+        channelCode: c.channelCode,
+        index: c.channelNumber || (out.length + 1),
+        name: c.name,
+        logo: c.posterUrl || (c.posterList && c.posterList[0] && c.posterList[0].fileUrl) || '',
+        uhd: /fhd|uhd|4k/i.test(c.name || ''),
+        fav: false,
+        now: 'En vivo',
+        next: '',
+        time: '',
+        liveAddressList: c.liveAddressList,
+        _hasValidLic: isLicenseValid(c.liveAddressList)
+      });
+    }
+    return out;
+  }
+
+  function fetchAllLiveColumnPages(client, columnId) {
+    var collected = [];
+    var pageSize = 3000;
+    function step(pageNum) {
+      return client.live.getLiveData({ columnId: columnId, pageNum: pageNum, pageSize: pageSize }).then(function (res) {
+        var list = (res && res.channelList) || [];
+        var total = Number((res && res.channelListTotalSize) || 0);
+        for (var i = 0; i < list.length; i++) collected.push(list[i]);
+        if (total > collected.length && list.length > 0 && pageNum < 10) {
+          return step(pageNum + 1);
+        }
+        return collected;
+      });
+    }
+    return step(1);
+  }
+
   function refreshMasterChannelCache(client, force) {
     if (!client || !client.live) return Promise.resolve([]);
     var now = Date.now();
-    if (!force && channelCacheTs > 0 && (now - channelCacheTs) < CHANNEL_CACHE_TTL && liveChannelsCache[76182] && liveChannelsCache[76182].length) {
+    if (!force && liveChannelsReal[76182] && channelCacheTs > 0 && (now - channelCacheTs) < CHANNEL_CACHE_TTL && liveChannelsCache[76182] && liveChannelsCache[76182].length) {
       return Promise.resolve(liveChannelsCache[76182]);
     }
     if (masterRefreshInflight) return masterRefreshInflight;
-    masterRefreshInflight = client.live.getLiveData({ columnId: 76182, pageSize: 3000 }).then(function (res) {
+    masterRefreshInflight = fetchAllLiveColumnPages(client, 76182).then(function (list) {
       masterRefreshInflight = null;
-      var list = res && res.channelList || [];
-      var chs = [];
-      for (var i = 0; i < list.length; i++) {
-        var c = list[i];
-        if (!c || isAdultChannel(c) || !Array.isArray(c.liveAddressList) || !c.liveAddressList.length) continue;
-        channelCache[c.channelCode] = c;
-        chs.push({
-          channelCode: c.channelCode,
-          index: c.channelNumber || (chs.length + 1),
-          name: c.name,
-          logo: c.posterUrl || (c.posterList && c.posterList[0] && c.posterList[0].fileUrl) || '',
-          uhd: /fhd|uhd|4k/i.test(c.name || ''),
-          fav: false,
-          now: 'En vivo',
-          next: '',
-          time: '',
-          liveAddressList: c.liveAddressList
-        });
-      }
+      var chs = normalizePortalChannelList(list);
       if (chs.length > 0) {
         if (w.__ESPN_CHANNELS && w.__ESPN_CHANNELS.length) {
           for (var eIdx = 0; eIdx < w.__ESPN_CHANNELS.length; eIdx++) {
@@ -269,6 +294,7 @@
         }
         liveChannelsCache[76182] = chs;
         liveChannelsCacheTs[76182] = Date.now();
+        liveChannelsReal[76182] = true;
         channelCacheTs = Date.now();
       }
       return chs;
@@ -278,6 +304,8 @@
     });
     return masterRefreshInflight;
   }
+
+  var liveChannelsReal = {};
 
   function getBundledChannels() {
     if (w.__BUNDLED_CHANNELS && w.__BUNDLED_CHANNELS.length > 0) {
@@ -315,9 +343,7 @@
   try {
     var initChs = getBundledChannels();
     if (initChs && initChs.length) {
-      liveChannelsCache[76182] = initChs;
-      liveChannelsCacheTs[76182] = Date.now();
-      channelCacheTs = Date.now();
+      // Precargar solo el mapa de emergencia por channelCode sin envenenar el cache TTL de 76182 (Todos)
       for (var ci = 0; ci < initChs.length; ci++) {
         if (initChs[ci] && initChs[ci].channelCode) {
           channelCache[initChs[ci].channelCode] = initChs[ci];
@@ -330,16 +356,17 @@
     76188: [{ id: 76188, name: 'Colombia', countryFolder: 'Colombia', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/co.m3u' }],
     76191: [{ id: 76191, name: 'España', countryFolder: 'España', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/es.m3u' }],
     76197: [{ id: 76197, name: 'México', countryFolder: 'México', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/mx.m3u' }],
-    76190: [{ id: 76190, name: 'Argentina', countryFolder: 'Argentina', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/ar.m3u' }],
-    76195: [{ id: 76195, name: 'Chile & Perú', countryFolder: 'Chile|Perú', m3uUrls: ['https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/cl.m3u', 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/pe.m3u'] }],
-    76192: [{ id: 76192, name: 'Ecuador', countryFolder: 'Ecuador', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/ec.m3u' }],
-    76193: [{ id: 76193, name: 'Bolivia', countryFolder: 'Bolivia', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/bo.m3u' }],
-    76201: [{ id: 76201, name: 'Estados Unidos', countryFolder: 'USA' }],
-    76203: [{ id: 76203, name: 'Guatemala', countryFolder: 'Guatemala', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/gt.m3u' }]
+    76190: [{ id: 76190, name: 'Ecuador', countryFolder: 'Ecuador', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/ec.m3u' }],
+    76207: [{ id: 76207, name: 'Chile', countryFolder: 'Chile', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/cl.m3u' }],
+    76187: [{ id: 76187, name: 'Perú', countryFolder: 'Perú', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/pe.m3u' }],
+    76202: [{ id: 76202, name: 'Bolivia', countryFolder: 'Bolivia', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/bo.m3u' }],
+    76194: [{ id: 76194, name: 'Estados Unidos', countryFolder: 'USA' }]
   };
 
   function getSecondaryLiveCategories() {
     return [
+      { id: 'm3u_ar', name: 'Argentina', countryFolder: 'Argentina', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/ar.m3u', isM3u: true },
+      { id: 'm3u_gt', name: 'Guatemala', countryFolder: 'Guatemala', m3uUrl: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/gt.m3u', isM3u: true },
       { id: 'addons', name: '➕ Addons M3U', isM3u: true }
     ];
   }
@@ -388,7 +415,7 @@
         addedColIds[colId] = true;
       }
     }
-    var pairColOrder = [76188, 76191, 76197, 76190, 76195, 76192, 76193, 76201, 76203];
+    var pairColOrder = [76188, 76191, 76197, 76190, 76207, 76187, 76202, 76194];
     for (var pci = 0; pci < pairColOrder.length; pci++) {
       var cid = pairColOrder[pci];
       if (!addedColIds[cid] && COUNTRY_S1_PAIR_MAP[cid] && COUNTRY_S1_PAIR_MAP[cid][0]) {
@@ -404,25 +431,24 @@
       { id: 76188, name: 'Colombia' },
       { id: 76191, name: 'España' },
       { id: 76197, name: 'México' },
-      { id: 76190, name: 'Argentina' },
-      { id: 76195, name: 'Chile & Perú' },
-      { id: 76192, name: 'Ecuador' },
-      { id: 76193, name: 'Bolivia' },
-      { id: 76201, name: 'Estados Unidos' },
-      { id: 76203, name: 'Guatemala' },
+      { id: 76190, name: 'Ecuador' },
+      { id: 76207, name: 'Chile' },
+      { id: 76187, name: 'Perú' },
+      { id: 76202, name: 'Bolivia' },
+      { id: 76194, name: 'Estados Unidos' },
       { id: 76205, name: 'Cine y Series' }
     ];
     if (full) {
       mainCats.push(
         { id: 79146, name: 'Infantil' },
-        { id: 76189, name: 'Venezuela' },
-        { id: 76194, name: 'Uruguay' },
-        { id: 76196, name: 'Paraguay' },
-        { id: 76204, name: 'Honduras' },
-        { id: 76207, name: 'El Salvador' },
-        { id: 76211, name: 'Noticias' },
-        { id: 76212, name: 'Música' },
-        { id: 76217, name: 'Cultura y Ciencia' }
+        { id: 77690, name: 'Venezuela' },
+        { id: 76201, name: 'Uruguay' },
+        { id: 77688, name: 'Paraguay' },
+        { id: 79134, name: 'Honduras' },
+        { id: 79145, name: 'El Salvador' },
+        { id: 76193, name: 'Noticias' },
+        { id: 76183, name: 'Música' },
+        { id: 76196, name: 'Cultura' }
       );
     }
     return buildPairedLiveCategories(mainCats);
@@ -2611,7 +2637,7 @@
       return true;
     }
 
-    if (method === 'liveChannels' && params && (params.m3uUrl || String(params.columnId || '').indexOf('m3u_') === 0)) {
+    if (method === 'liveChannels' && params && (String(params.columnId || '').indexOf('m3u_') === 0 || (params.m3uUrl && !(Number(params.columnId) > 0)))) {
       var presetM3uMap = {
         m3u_spa: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/languages/spa.m3u',
         m3u_es: 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/es.m3u',
@@ -3558,70 +3584,48 @@
             }, 0);
           }
           var nowMs = Date.now();
-          if (liveChannelsCache[colId] && liveChannelsCache[colId].length && (nowMs - (liveChannelsCacheTs[colId] || 0)) < CHANNEL_CACHE_TTL) {
+          if (liveChannelsReal[colId] && liveChannelsCache[colId] && liveChannelsCache[colId].length && (nowMs - (liveChannelsCacheTs[colId] || 0)) < CHANNEL_CACHE_TTL) {
             return setTimeout(function() {
               callback(null, { returnValue: true, channels: liveChannelsCache[colId] });
             }, 0);
           }
           if (client && client.live) {
+            var cidNum = Number(colId);
+            var countryPair = COUNTRY_S1_PAIR_MAP[cidNum] && COUNTRY_S1_PAIR_MAP[cidNum][0];
+            var timeoutMs = (cidNum === 76182) ? 15000 : 12000;
             var timeoutPromise = new Promise(function(_, reject) {
-              setTimeout(function() { reject(new Error('liveChannels fetch timeout')); }, 3000);
+              setTimeout(function() { reject(new Error('liveChannels fetch timeout')); }, timeoutMs);
             });
             return Promise.race([
-              client.live.getLiveData({ columnId: colId, pageSize: 3000 }),
+              fetchAllLiveColumnPages(client, colId),
               timeoutPromise
-            ]).then(function (res) {
-              var list = res && res.channelList || [];
-              var chs = [];
-              var masByFam = {};
-              for (var i = 0; i < list.length; i++) {
-                var c = list[i];
-                if (!c || isAdultChannel(c) || !Array.isArray(c.liveAddressList) || !c.liveAddressList.length) continue;
-                channelCache[c.channelCode] = c;
-                var cHasLic = isLicenseValid(c.liveAddressList);
-                var chObj = {
-                  channelCode: c.channelCode,
-                  index: c.channelNumber || (chs.length + 1),
-                  name: c.name,
-                  logo: c.posterUrl || (c.posterList && c.posterList[0] && c.posterList[0].fileUrl) || '',
-                  uhd: /fhd|uhd|4k/i.test(c.name || ''),
-                  fav: false,
-                  now: 'En vivo',
-                  next: '',
-                  time: '',
-                  liveAddressList: c.liveAddressList,
-                  _hasValidLic: cHasLic
-                };
-                var cFam = normalizeMenuFamilyKey(c.name || '');
-                if (cFam && masByFam[cFam]) {
-                  var prevMas = masByFam[cFam];
-                  if (!prevMas._hasValidLic && cHasLic) {
-                    var prevIdx = chs.indexOf(prevMas);
-                    if (prevIdx !== -1) chs[prevIdx] = chObj;
-                    masByFam[cFam] = chObj;
-                  } else if (Array.isArray(c.liveAddressList)) {
-                    prevMas.liveAddressList = prevMas.liveAddressList.concat(c.liveAddressList);
-                  }
-                  continue;
-                }
-                if (cFam) masByFam[cFam] = chObj;
-                chs.push(chObj);
-              }
+            ]).then(function (list) {
+              var seenPortalCodes = {};
+              var chs = normalizePortalChannelList(list, seenPortalCodes);
+
+              var normalizeExactKey = function (name) {
+                var s = String(name || '').toLowerCase();
+                try { s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (_) {}
+                return s.replace(/[^a-z0-9+]+/g, '').trim();
+              };
+
               var mergeUnifiedExtras = function (baseList, extraGroups) {
-                var byFam = {};
+                var byExact = {};
+                var byCode = {};
                 var outList = baseList.slice();
                 for (var bi = 0; bi < outList.length; bi++) {
                   var bCh = outList[bi];
-                  var bFam = normalizeMenuFamilyKey(bCh.name || '');
-                  if (bFam && !byFam[bFam]) byFam[bFam] = bCh;
+                  if (bCh.channelCode) byCode[bCh.channelCode] = bCh;
+                  var bKey = normalizeExactKey(bCh.name || '');
+                  if (bKey && !byExact[bKey]) byExact[bKey] = bCh;
                 }
                 for (var gi = 0; gi < extraGroups.length; gi++) {
                   var grp = Array.isArray(extraGroups[gi]) ? extraGroups[gi] : [];
                   for (var ei = 0; ei < grp.length; ei++) {
                     var ech = grp[ei];
                     if (!ech || !ech.name) continue;
-                    var eFam = normalizeMenuFamilyKey(ech.name);
-                    var existing = eFam && byFam[eFam];
+                    var eKey = normalizeExactKey(ech.name);
+                    var existing = (ech.channelCode && byCode[ech.channelCode]) || (eKey && byExact[eKey]);
                     if (existing) {
                       var eUrl = ech.streamUrl || ech.url || '';
                       if (eUrl && /^https?:\/\//i.test(eUrl)) {
@@ -3643,18 +3647,52 @@
                       }
                       continue;
                     }
-                    if (eFam) byFam[eFam] = ech;
+                    if (ech.channelCode) byCode[ech.channelCode] = ech;
+                    if (eKey) byExact[eKey] = ech;
                     outList.push(ech);
                   }
                 }
                 return outList;
               };
+
               if (chs.length > 0) {
-                var cidNum = Number(colId);
-                var countryPair = COUNTRY_S1_PAIR_MAP[cidNum] && COUNTRY_S1_PAIR_MAP[cidNum][0];
+                if (cidNum !== 76182 && liveChannelsReal[76182] && Array.isArray(liveChannelsCache[76182])) {
+                  var masterSeen = {};
+                  for (var mi = 0; mi < liveChannelsCache[76182].length; mi++) {
+                    if (liveChannelsCache[76182][mi] && liveChannelsCache[76182][mi].channelCode) {
+                      masterSeen[liveChannelsCache[76182][mi].channelCode] = true;
+                    }
+                  }
+                  for (var ci = 0; ci < chs.length; ci++) {
+                    if (chs[ci] && chs[ci].channelCode && !masterSeen[chs[ci].channelCode]) {
+                      masterSeen[chs[ci].channelCode] = true;
+                      liveChannelsCache[76182].push(chs[ci]);
+                    }
+                  }
+                }
                 var extraPromise = null;
                 if (cidNum === 76182) {
+                  // Completar en Todos los canales exclusivos que el servidor solo lista en subcategorías específicas
+                  var extraPortalCols = [77977, 76205, 76197, 76191, 76194, 76192];
+                  var extraPortalPromise = Promise.all(extraPortalCols.map(function (exCid) {
+                    return fetchAllLiveColumnPages(client, exCid).then(function (exList) {
+                      return normalizePortalChannelList(exList);
+                    }).catch(function () { return []; });
+                  })).then(function (colArrays) {
+                    var flat = [];
+                    for (var cai = 0; cai < colArrays.length; cai++) {
+                      var arr = colArrays[cai] || [];
+                      for (var ai = 0; ai < arr.length; ai++) {
+                        if (arr[ai] && arr[ai].channelCode && !seenPortalCodes[arr[ai].channelCode]) {
+                          seenPortalCodes[arr[ai].channelCode] = true;
+                          flat.push(arr[ai]);
+                        }
+                      }
+                    }
+                    return flat;
+                  });
                   extraPromise = Promise.all([
+                    extraPortalPromise,
                     fetchUnifiedEspnChannels().catch(function () { return []; }),
                     fetchEpicSportsChannels().catch(function () { return []; }),
                     fetchPortalCategoryChannels().catch(function () { return []; }),
@@ -3682,6 +3720,7 @@
                 var finalizeLiveResult = function (finalChs) {
                   liveChannelsCache[colId] = finalChs;
                   liveChannelsCacheTs[colId] = Date.now();
+                  liveChannelsReal[colId] = true;
                   if (cidNum === 76182) {
                     channelCacheTs = Date.now();
                   }
@@ -3694,15 +3733,33 @@
                 }
                 return finalizeLiveResult(chs);
               }
-              var fallback = (liveChannelsCache[76182] && liveChannelsCache[76182].length) ? liveChannelsCache[76182] : getBundledChannels();
-              return callback(null, { returnValue: true, channels: fallback });
+              if (countryPair || params.countryFolder || params.m3uUrl || params.m3uUrls) {
+                var fbFolder = params.countryFolder || (countryPair && countryPair.countryFolder) || '';
+                var fbM3u = params.m3uUrl || (countryPair && countryPair.m3uUrl) || '';
+                var fbM3us = params.m3uUrls || (countryPair && countryPair.m3uUrls) || null;
+                return fetchCountryS1Channels(String(colId), fbM3u, fbFolder, fbM3us).then(function (arr) {
+                  return callback(null, { returnValue: true, channels: arr || [] });
+                });
+              }
+              var fallback = (liveChannelsReal[76182] && liveChannelsCache[76182] && liveChannelsCache[76182].length && cidNum === 76182) ? liveChannelsCache[76182] : getBundledChannels();
+              return callback(null, { returnValue: true, channels: cidNum === 76182 ? fallback : [] });
             }).catch(function (err) {
               console.warn('[liveChannels category fetch error, using fallback]', err);
-              var fallback = (liveChannelsCache[76182] && liveChannelsCache[76182].length) ? liveChannelsCache[76182] : getBundledChannels();
+              if (countryPair || params.countryFolder || params.m3uUrl || params.m3uUrls) {
+                var erFolder = params.countryFolder || (countryPair && countryPair.countryFolder) || '';
+                var erM3u = params.m3uUrl || (countryPair && countryPair.m3uUrl) || '';
+                var erM3us = params.m3uUrls || (countryPair && countryPair.m3uUrls) || null;
+                return fetchCountryS1Channels(String(colId), erM3u, erFolder, erM3us).then(function (arr) {
+                  return callback(null, { returnValue: true, channels: arr || [] });
+                }).catch(function () {
+                  return callback(null, { returnValue: true, channels: [] });
+                });
+              }
+              var fallback = (liveChannelsReal[76182] && liveChannelsCache[76182] && liveChannelsCache[76182].length) ? liveChannelsCache[76182] : getBundledChannels();
               return callback(null, { returnValue: true, channels: fallback });
             });
           }
-          var fallbackChs = (liveChannelsCache[colId] && liveChannelsCache[colId].length) ? liveChannelsCache[colId] : getBundledChannels();
+          var fallbackChs = (liveChannelsReal[colId] && liveChannelsCache[colId] && liveChannelsCache[colId].length) ? liveChannelsCache[colId] : getBundledChannels();
           return setTimeout(function() {
             callback(null, { returnValue: true, channels: fallbackChs });
           }, 0);
