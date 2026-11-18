@@ -515,6 +515,34 @@
       return /playlatam\.site|epictvparaiphone\.top|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221/i.test(String(url || ''));
     }
 
+    function isPlaylatamHost(url) {
+      return /playlatam\.site|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221/i.test(String(url || ''));
+    }
+
+    function isPortalCredExpired() {
+      if (w.__xePlaylatamAuthBlocked) return true;
+      try {
+        var parts = String(PORTAL_CRED || '').split('.');
+        if (parts.length >= 3) {
+          var expSec = parseInt(parts[2], 10);
+          if (expSec > 1000000000 && Date.now() >= (expSec * 1000)) return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+
+    function isPulseraExpired() {
+      var tok = getEpicTokenCached() || DEFAULT_PULSERA;
+      try {
+        var parts = String(tok || '').split('.');
+        if (parts.length >= 3) {
+          var expSec = parseInt(parts[2], 10);
+          if (expSec > 1000000000 && Date.now() >= (expSec * 1000)) return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+
     function ensureEpicUserAgent() {
       try {
         var curUa = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
@@ -629,6 +657,7 @@
     }
 
     function probeFastestPortalMirror() {
+      if (isPortalCredExpired()) return;
       if (w.__xePortalProbeInflight || typeof w.fetch !== 'function' || isTizen3Device()) return;
       w.__xePortalProbeInflight = true;
       ensureEpicUserAgent().then(function () {
@@ -678,6 +707,9 @@
 
     function epicRawFetch(targetUrl, method, headers, timeoutMs, asText) {
       if (typeof w.fetch !== 'function') return Promise.reject(new Error('fetch no disponible'));
+      if (isPlaylatamHost(targetUrl) && isPortalCredExpired()) {
+        return Promise.reject(new Error('PlayLatam desactivado (credencial expirada)'));
+      }
       var relay = w.XuperRelay;
       function execOnce(urlToCall, useRelay, mirrorBase) {
         var reqUrl = urlToCall;
@@ -701,6 +733,9 @@
           signal: ctrl ? ctrl.signal : undefined
         }).then(function (r) {
           if (tm) clearTimeout(tm);
+          if (r && r.status === 401 && isPlaylatamHost(urlToCall)) {
+            w.__xePlaylatamAuthBlocked = true;
+          }
           if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : 0));
           if (mirrorBase && !useRelay) {
             var dt = Date.now() - t0;
@@ -722,6 +757,9 @@
         if (/^https:\/\/playlatam\.site(\/|$)/i.test(String(targetUrl || ''))) {
           var mirrors = getOrderedPortalMirrors();
           var tryMirrorIdx = function (mIdx) {
+            if (isPortalCredExpired()) {
+              return Promise.reject(new Error('PlayLatam requiere autenticacion'));
+            }
             if (mIdx >= mirrors.length) {
               if (relay && typeof relay.wrapPortalRequest === 'function') return execOnce(targetUrl, true, '');
               return Promise.reject(new Error('Todos los espejos de playlatam fallaron'));
@@ -736,6 +774,7 @@
               return res;
             }, function () {
               timeoutMs = prevTmo;
+              if (isPortalCredExpired()) return Promise.reject(new Error('PlayLatam requiere autenticacion'));
               return tryMirrorIdx(mIdx + 1);
             });
           };
@@ -762,7 +801,7 @@
       if (isValidPulseraToken(cachedTok)) {
         return Promise.resolve(cachedTok);
       }
-      if (typeof w.fetch !== 'function') return Promise.resolve(DEFAULT_PULSERA);
+      if (isPortalCredExpired() || typeof w.fetch !== 'function') return Promise.resolve(DEFAULT_PULSERA);
       return epicFetch('https://playlatam.site/iphone/pulsera', 'POST', { 'Accept': 'application/json, text/plain, */*' }, 3500)
         .then(function (j) {
           var candidate = j && j.token;
@@ -854,6 +893,7 @@
     }
 
     function fetchRawEpicPerelmanChannels() {
+      if (isPortalCredExpired()) return Promise.resolve(mergeEpicChannels(null));
       return fetchEpicTokenFresh().then(function (tok) {
         if (typeof w.fetch !== 'function') return mergeEpicChannels(null);
         var hdrs = { 'Accept': 'application/json', 'X-Cred': PORTAL_CRED };
@@ -974,6 +1014,7 @@
     }
 
     function fetchPortalCanales() {
+      if (isPortalCredExpired()) return Promise.resolve([]);
       if (w.__xePortalCache && (Date.now() - (w.__xePortalCacheTs || 0)) < 15 * 60 * 1000) {
         return Promise.resolve(w.__xePortalCache);
       }
@@ -1913,9 +1954,12 @@
         var menuUrl = 'https://playlatam.site/menu?all=1&recetas=aparte&agenda=propia&v=9999&tz=' + encodeURIComponent(tz) + '&idioma=es';
         var menuHdrs = { 'Accept': 'application/json', 'X-Cred': PORTAL_CRED };
         if (tok) menuHdrs['X-Pulsera'] = tok;
+        var menuPromise = isPortalCredExpired()
+          ? Promise.resolve({ events: [] })
+          : epicFetch(menuUrl, 'GET', menuHdrs, 7500).catch(function () { return { events: [] }; });
         return Promise.all([
           fetchEpicSportsChannels().catch(function () { return mergeEpicChannels(null); }),
-          epicFetch(menuUrl, 'GET', menuHdrs, 7500).catch(function () { return { events: [] }; }),
+          menuPromise,
           fetchHelloHowLiveEvents().catch(function () { return []; }),
           fetchStreamTpChannels().catch(function () { return []; }),
           fetchKsdChannels().catch(function () { return []; }),
@@ -2202,6 +2246,9 @@
         u = u.replace(/^https?:\/\/playlatam\.site/i, 'https://epictvparaiphone.top');
         if (!/\.m3u8(\?|#|$)/i.test(u)) u += '.m3u8';
       }
+      if (isPlaylatamHost(u) && isPortalCredExpired()) {
+        return Promise.reject(new Error('PlayLatam credencial expirada'));
+      }
       if (/\.m3u8(\?|#|$)/i.test(u)) {
         var cleanDirect = u.replace(/#mpegurl$/i, '');
         if (/epictvparaiphone\.top|playlatam\.site/i.test(cleanDirect)) {
@@ -2217,6 +2264,7 @@
         return Promise.resolve({ url: cleanDirect, headers: baseHdrs });
       }
       var tryServerResolve = function () {
+        if (isPortalCredExpired()) return Promise.reject(new Error('PlayLatam credencial expirada'));
         return fetchEpicTokenFresh().then(function (tok) {
           var apiUrl = 'https://playlatam.site/resolve?url=' + encodeURIComponent(u) + '&navegador=1';
           return epicFetch(apiUrl, 'GET', { 'Accept': 'application/json', 'X-Pulsera': tok }, 8000).then(function (res) {
@@ -2663,6 +2711,9 @@
       if (isEpicMenuItem) {
         if (backupCandidates.length > 12) backupCandidates = backupCandidates.slice(0, 12);
         var verifyMenuManifest = function (checkUrl, checkHdrs) {
+          if (isPlaylatamHost(checkUrl) && isPortalCredExpired()) {
+            return Promise.reject(new Error('HTTP 401 PlayLatam expirado'));
+          }
           if (typeof w.fetch !== 'function') return Promise.resolve(true);
           var relay = w.XuperRelay;
           var fetchOnce = function (useRelay) {
@@ -2919,13 +2970,19 @@
           if (expandedCandidates.indexOf(candEpic) === -1) expandedCandidates.push(candEpic);
           if (cIdx === 0) primaryDirect = candEpic;
         }
-        if (expandedCandidates.indexOf(cand) === -1) expandedCandidates.push(cand);
-        if (cand.indexOf('epictvparaiphone.top') !== -1) {
+        if (!(isPlaylatamHost(cand) && isPortalCredExpired()) && expandedCandidates.indexOf(cand) === -1) {
+          expandedCandidates.push(cand);
+        }
+        if (!isPortalCredExpired() && cand.indexOf('epictvparaiphone.top') !== -1) {
           var candPlay = cand.replace(/https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
           if (expandedCandidates.indexOf(candPlay) === -1) expandedCandidates.push(candPlay);
         }
       }
+      if (!expandedCandidates.length) expandedCandidates = backupCandidates.slice();
       backupCandidates = expandedCandidates;
+      if (isPlaylatamHost(primaryDirect) && isPortalCredExpired() && backupCandidates.length) {
+        primaryDirect = backupCandidates[0];
+      }
       var anyNeedsPulsera = primaryNeedsPulsera || backupCandidates.some(function (u) { return pulseraRe.test(u); });
       var hdrPromise = anyNeedsPulsera
         ? ensureEpicUserAgent().then(function () {

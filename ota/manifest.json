@@ -1,10 +1,10 @@
 {
-  "rev": 7,
-  "version": "3.0.0-ota7",
+  "rev": 8,
+  "version": "3.0.0-ota8",
   "minBaseRev": 1,
-  "bundle": "bundle-7.json",
-  "sha256": "f7a0bd52e87887939bda3a7e4432503801cbdac0d8f1354ac7afcc40e0156cb1",
-  "sig": "dda2c98aaef94a2055ea9f562bf6c6f3",
-  "notes": "Adaptive UI Smoothness Tiers (legacy/mid/modern) + throttle + Ja cap",
-  "updatedAt": "2026-11-18T00:36:35.509Z"
+  "bundle": "bundle-8.json",
+  "sha256": "fcad66ab7ff8fe8f513bd77c28f03b3a8e52695f08ffa942fd220e028cbd4b21",
+  "sig": "e3bdc4e41ec7e95d7cea54109cd252ed",
+  "notes": "Actualizacion OTA rev 8",
+  "updatedAt": "2026-11-18T01:23:42.725Z"
 }
