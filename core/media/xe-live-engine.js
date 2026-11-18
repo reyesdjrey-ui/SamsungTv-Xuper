@@ -39,6 +39,10 @@
       var origAddSB = MediaSource.prototype.addSourceBuffer;
       MediaSource.prototype.addSourceBuffer = function(type) {
         if(w.__trace) w.__trace.push('addSB:' + type);
+        if(type && String(type).indexOf('audio') === 0 && w.__xeActiveAudioBridge && typeof w.__xeActiveAudioBridge.createSourceBuffer === 'function'){
+          var vSb = w.__xeActiveAudioBridge.createSourceBuffer(type);
+          if(vSb) return vSb;
+        }
         var sb = origAddSB.call(this, type);
         sb.__type = type;
         sb.addEventListener('error', function(e) {
@@ -360,6 +364,8 @@
     restoreScreenSaver();
     var s=playing;playing=null;pending=null;ticket++;
     if(!s)return;
+    if(s.audioBridge){try{s.audioBridge.destroy();}catch(_){} s.audioBridge=null;}
+    if(w.__xeActiveAudioBridge && (!s || w.__xeActiveAudioBridge.session === s)){w.__xeActiveAudioBridge=null;}
     if(s.statTimer)try{clearInterval(s.statTimer);}catch(_){}
     s.stopped=true;if(s.abort)try{s.abort.abort();}catch(_){ }
     if(s.key)d.removeEventListener('keydown',s.key,true);
@@ -404,6 +410,7 @@
     function clear(keepErr){clearTimeout(timer);if(s.video){s.video.removeEventListener('playing',good);if(!keepErr)s.video.removeEventListener('error',badEvent);}}
     function good(){
       if(finished)return;finished=true;clear(true);
+      s.hasStartedPlaying=true;
       note(s,'● EN VIVO');
       if(w.__onStreamPlaying)w.__onStreamPlaying();
       if(s.statTimer)clearInterval(s.statTimer);
@@ -452,6 +459,9 @@
         s.onAudioFallback().then(resolve,reject);
         return;
       }
+      if((c === 4 || c === 3) && s._triggerDualFallback && s._triggerDualFallback()){
+        return;
+      }
       if(finished)return;
       var info = 'rs=' + (s.video?s.video.readyState:'?') + ' ns=' + (s.video?s.video.networkState:'?') + ' ct=' + (s.video?s.video.currentTime.toFixed(2):'?');
       var tStr = (w.__trace||[]).slice(-7).join(' || ');
@@ -463,6 +473,14 @@
       reject(err);
     }
     s.rejectStart=bad;
+    s._triggerDualFallback=function(){
+      if(finished || s.singleBufAudio || !s.onDualBufferFallback)return false;
+      finished=true;clear(false);
+      s.singleBufAudio=true;w.__xeLiveSingleBufAudio=true;
+      console.warn('[LiveTV] Doble SourceBuffer rechazado, activando MSE video + WebAudio');
+      s.onDualBufferFallback().then(resolve,reject);
+      return true;
+    };
     s.video.addEventListener('playing',good);s.video.addEventListener('error',badEvent);
     ['loadstart','loadedmetadata','loadeddata','canplay','waiting','stalled','seeked'].forEach(function(evt){
       s.video.addEventListener(evt,function(){tr('vid:'+evt);},{once:true});
@@ -560,9 +578,290 @@
       },{once:true});
     });});
   }
+  function readUint32BE(u8, off){
+    return ((u8[off] << 24) >>> 0) + (u8[off + 1] << 16) + (u8[off + 2] << 8) + u8[off + 3];
+  }
+  function parseMp4AudioTimescale(u8){
+    if(!u8 || u8.length < 16) return 44100;
+    for(var i = 0; i <= u8.length - 16; i++){
+      if(u8[i+4] === 0x6d && u8[i+5] === 0x64 && u8[i+6] === 0x68 && u8[i+7] === 0x64){
+        var ver = u8[i + 8];
+        var tsOff = ver === 1 ? (i + 28) : (i + 20);
+        if(tsOff + 4 <= u8.length){
+          var ts = readUint32BE(u8, tsOff);
+          if(ts >= 8000 && ts <= 192000) return ts;
+        }
+      }
+    }
+    return 44100;
+  }
+  function parseMoofTfdt(u8){
+    if(!u8 || u8.length < 20) return null;
+    for(var i = 0; i <= u8.length - 20; i++){
+      if(u8[i+4] === 0x74 && u8[i+5] === 0x66 && u8[i+6] === 0x64 && u8[i+7] === 0x74){
+        var ver = u8[i + 8];
+        if(ver === 1 && i + 20 <= u8.length){
+          var hi = readUint32BE(u8, i + 12);
+          var lo = readUint32BE(u8, i + 16);
+          return hi * 4294967296 + lo;
+        }
+        if(ver === 0 && i + 16 <= u8.length){
+          return readUint32BE(u8, i + 12);
+        }
+      }
+    }
+    return null;
+  }
+  function createVirtualAudioBridge(s){
+    var AC = w.AudioContext || w.webkitAudioContext;
+    var ctx = null;
+    if(AC){
+      try{
+        if(!w.__xeSharedAudioCtx || w.__xeSharedAudioCtx.state === 'closed'){
+          w.__xeSharedAudioCtx = new AC();
+        }
+        ctx = w.__xeSharedAudioCtx;
+        if(ctx.state === 'suspended' && ctx.resume){ var rp0 = ctx.resume(); if(rp0 && rp0.catch) rp0.catch(function(){}); }
+      }catch(_){ ctx = null; }
+    }
+    var bridge = {
+      session: s,
+      destroyed: false,
+      ctx: ctx,
+      initSeg: null,
+      timescale: 44100,
+      ranges: [],
+      cursorSec: 0,
+      nextScheduleTime: 0,
+      activeNodes: [],
+      decodedQueue: [],
+      gainNode: null,
+      syncTimer: null
+    };
+    if(ctx && ctx.createGain){
+      try{
+        bridge.gainNode = ctx.createGain();
+        bridge.gainNode.connect(ctx.destination);
+      }catch(_){ bridge.gainNode = null; }
+    }
+    function stopAllNodes(){
+      for(var i = 0; i < bridge.activeNodes.length; i++){
+        try{ bridge.activeNodes[i].stop(); }catch(_){}
+        try{ bridge.activeNodes[i].disconnect(); }catch(_){}
+      }
+      bridge.activeNodes = [];
+      bridge.nextScheduleTime = 0;
+    }
+    function syncGain(){
+      if(!bridge.gainNode || !s.video) return;
+      bridge.gainNode.gain.value = s.video.muted ? 0 : (typeof s.video.volume === 'number' ? s.video.volume : 1);
+    }
+    function pumpAudio(){
+      if(bridge.destroyed || s.stopped || playing !== s || !ctx || !s.video) return;
+      if(s.video.paused || s.video.readyState < 2){
+        if(bridge.activeNodes.length) stopAllNodes();
+        return;
+      }
+      if(ctx.state === 'suspended' && ctx.resume){ var rp1 = ctx.resume(); if(rp1 && rp1.catch) rp1.catch(function(){}); }
+      syncGain();
+      var vTime = Number(s.video.currentTime || 0);
+      var nowCtx = ctx.currentTime;
+      while(bridge.decodedQueue.length){
+        var item = bridge.decodedQueue[0];
+        if(item.scheduled) { bridge.decodedQueue.shift(); continue; }
+        if(item.endSec <= vTime + 0.04){
+          bridge.decodedQueue.shift();
+          continue;
+        }
+        if(item.startSec > vTime + 4.0) break;
+        bridge.decodedQueue.shift();
+        try{
+          var src = ctx.createBufferSource();
+          src.buffer = item.ab;
+          src.connect(bridge.gainNode || ctx.destination);
+          var offset = Math.max(0, vTime - item.startSec);
+          var lead = Math.max(0, item.startSec - vTime);
+          var targetStart = nowCtx + lead;
+          if(bridge.nextScheduleTime > nowCtx && Math.abs((bridge.nextScheduleTime - nowCtx) - lead) < 0.25 && offset === 0){
+            targetStart = bridge.nextScheduleTime;
+          }
+          var playDur = Math.max(0.01, item.ab.duration - offset);
+          src.start(targetStart, offset, playDur);
+          bridge.nextScheduleTime = targetStart + playDur;
+          bridge.activeNodes.push(src);
+          src.onended = function(){
+            var idx = bridge.activeNodes.indexOf(this);
+            if(idx >= 0) bridge.activeNodes.splice(idx, 1);
+          };
+        }catch(_){}
+      }
+    }
+    if(s.video){
+      bridge._onPause = function(){ stopAllNodes(); };
+      bridge._onSeeked = function(){ stopAllNodes(); pumpAudio(); };
+      bridge._onPlay = function(){ pumpAudio(); };
+      s.video.addEventListener('pause', bridge._onPause);
+      s.video.addEventListener('seeked', bridge._onSeeked);
+      s.video.addEventListener('playing', bridge._onPlay);
+      s.video.addEventListener('volumechange', syncGain);
+    }
+    bridge.syncTimer = setInterval(pumpAudio, 80);
+    bridge.createSourceBuffer = function(){
+      var listeners = {};
+      var vSb = {
+        updating: false,
+        mode: 'segments',
+        timestampOffset: 0,
+        appendWindowStart: 0,
+        appendWindowEnd: Infinity,
+        onupdatestart: null,
+        onupdate: null,
+        onupdateend: null,
+        onerror: null,
+        onabort: null,
+        buffered: {
+          get length(){ return bridge.ranges.length; },
+          start: function(i){ return bridge.ranges[i] ? bridge.ranges[i][0] : 0; },
+          end: function(i){ return bridge.ranges[i] ? bridge.ranges[i][1] : 0; }
+        },
+        addEventListener: function(ev, fn){
+          if(!listeners[ev]) listeners[ev] = [];
+          if(listeners[ev].indexOf(fn) === -1) listeners[ev].push(fn);
+        },
+        removeEventListener: function(ev, fn){
+          if(!listeners[ev]) return;
+          var idx = listeners[ev].indexOf(fn);
+          if(idx >= 0) listeners[ev].splice(idx, 1);
+        },
+        dispatchEvent: function(ev){
+          var t = ev && ev.type ? ev.type : String(ev || '');
+          var obj = (ev && typeof ev === 'object') ? ev : { type: t };
+          var cb = vSb['on' + t];
+          if(typeof cb === 'function') try{ cb.call(vSb, obj); }catch(_){}
+          var arr = (listeners[t] || []).slice();
+          for(var i = 0; i < arr.length; i++){
+            try{ arr[i].call(vSb, obj); }catch(_){}
+          }
+        },
+        changeType: function(){},
+        abort: function(){ vSb.dispatchEvent({ type: 'abort' }); },
+        remove: function(start, end){
+          vSb.updating = true;
+          vSb.dispatchEvent({ type: 'updatestart' });
+          setTimeout(function(){
+            if(bridge.destroyed) return;
+            var nextRanges = [];
+            for(var i = 0; i < bridge.ranges.length; i++){
+              var r0 = bridge.ranges[i][0], r1 = bridge.ranges[i][1];
+              if(r1 <= start || r0 >= end) nextRanges.push([r0, r1]);
+              else{
+                if(r0 < start) nextRanges.push([r0, start]);
+                if(r1 > end) nextRanges.push([end, r1]);
+              }
+            }
+            bridge.ranges = nextRanges;
+            vSb.updating = false;
+            vSb.dispatchEvent({ type: 'update' });
+            vSb.dispatchEvent({ type: 'updateend' });
+          }, 0);
+        },
+        appendBuffer: function(buf){
+          vSb.updating = true;
+          vSb.dispatchEvent({ type: 'updatestart' });
+          var u8 = buf ? new Uint8Array(buf instanceof ArrayBuffer ? buf : buf.buffer, buf.byteOffset || 0, buf.byteLength || 0) : new Uint8Array(0);
+          var copy = new Uint8Array(u8.length);
+          copy.set(u8);
+          var finishUpdate = function(sTime, eTime){
+            if(bridge.destroyed) return;
+            if(eTime > sTime){
+              if(!bridge.ranges.length){
+                bridge.ranges.push([sTime, eTime]);
+              }else{
+                var last = bridge.ranges[bridge.ranges.length - 1];
+                if(sTime <= last[1] + 0.35){
+                  last[0] = Math.min(last[0], sTime);
+                  last[1] = Math.max(last[1], eTime);
+                }else{
+                  bridge.ranges.push([sTime, eTime]);
+                }
+              }
+            }
+            vSb.updating = false;
+            vSb.dispatchEvent({ type: 'update' });
+            vSb.dispatchEvent({ type: 'updateend' });
+          };
+          if(!bridge.initSeg || (copy.length >= 8 && copy[4] === 0x66 && copy[5] === 0x74 && copy[6] === 0x79 && copy[7] === 0x70)){
+            bridge.initSeg = copy;
+            bridge.timescale = parseMp4AudioTimescale(copy);
+            setTimeout(function(){ finishUpdate(0, 0); }, 0);
+            return;
+          }
+          if(!ctx || !ctx.decodeAudioData){
+            setTimeout(function(){
+              var vb = s.video && s.video.buffered;
+              var t0 = (vb && vb.length) ? vb.start(0) : bridge.cursorSec;
+              var t1 = (vb && vb.length) ? vb.end(vb.length - 1) : (t0 + 2);
+              finishUpdate(t0, t1);
+            }, 0);
+            return;
+          }
+          var tfdtTicks = parseMoofTfdt(copy);
+          var comb = new Uint8Array(bridge.initSeg.length + copy.length);
+          comb.set(bridge.initSeg, 0);
+          comb.set(copy, bridge.initSeg.length);
+          ctx.decodeAudioData(comb.buffer, function(ab){
+            if(bridge.destroyed) return;
+            var startSec = (tfdtTicks !== null && bridge.timescale > 0) ? (tfdtTicks / bridge.timescale) : bridge.cursorSec;
+            var endSec = startSec + ab.duration;
+            bridge.cursorSec = Math.max(bridge.cursorSec, endSec);
+            bridge.decodedQueue.push({ startSec: startSec, endSec: endSec, ab: ab });
+            if(bridge.decodedQueue.length > 24) bridge.decodedQueue.shift();
+            pumpAudio();
+            finishUpdate(startSec, endSec);
+          }, function(){
+            var vb = s.video && s.video.buffered;
+            var t0 = (vb && vb.length) ? vb.start(0) : bridge.cursorSec;
+            var t1 = (vb && vb.length) ? vb.end(vb.length - 1) : (t0 + 2);
+            finishUpdate(t0, t1);
+          });
+        }
+      };
+      return vSb;
+    };
+    bridge.destroy = function(){
+      bridge.destroyed = true;
+      if(bridge.syncTimer){ clearInterval(bridge.syncTimer); bridge.syncTimer = null; }
+      stopAllNodes();
+      if(bridge.gainNode){ try{ bridge.gainNode.disconnect(); }catch(_){} bridge.gainNode = null; }
+      if(s.video){
+        try{ s.video.removeEventListener('pause', bridge._onPause); }catch(_){}
+        try{ s.video.removeEventListener('seeked', bridge._onSeeked); }catch(_){}
+        try{ s.video.removeEventListener('playing', bridge._onPlay); }catch(_){}
+        try{ s.video.removeEventListener('volumechange', syncGain); }catch(_){}
+      }
+      if(w.__xeActiveAudioBridge === bridge) w.__xeActiveAudioBridge = null;
+    };
+    return bridge;
+  }
   function h264Start(s){
     if(!w.Hls||!w.Hls.isSupported())return Promise.reject(Error('Hls.js/MSE no está disponible para este canal.'));
+    var useBridge = !!(s.singleBufAudio || w.__xeLiveSingleBufAudio || (w.XuperEngineConfig && w.XuperEngineConfig.isEmulator));
+    s.singleBufAudio = useBridge;
+    if(!useBridge){
+      s.onDualBufferFallback = function(){
+        if(s.hls){try{s.hls.destroy();}catch(_){} s.hls=null;}
+        if(s.video){try{s.video.pause();s.video.removeAttribute('src');s.video.load();}catch(_){}}
+        return h264Start(s);
+      };
+    }
     return waitPlaying(s,function(){
+      if(s.audioBridge){try{s.audioBridge.destroy();}catch(_){} s.audioBridge=null;}
+      if(s.singleBufAudio){
+        s.audioBridge = createVirtualAudioBridge(s);
+        w.__xeActiveAudioBridge = s.audioBridge;
+      }else if(w.__xeActiveAudioBridge){
+        w.__xeActiveAudioBridge = null;
+      }
       var h=new w.Hls({loader:LiveLoader,enableWorker:false,lowLatencyMode:false,
         maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:20,liveSyncDurationCount:6,
         liveMaxLatencyDurationCount:16,maxLiveSyncPlaybackRate:1.0,manifestLoadingTimeOut:15000,
@@ -580,6 +879,9 @@
               try{h.startLoad();}catch(_){}
               break;
             case w.Hls.ErrorTypes.MEDIA_ERROR:
+              if(!s.hasStartedPlaying && !s.singleBufAudio && s._triggerDualFallback && s._triggerDualFallback()){
+                return;
+              }
               console.warn('[LiveTV] Error multimedia fatal Hls.js, recuperando...', d);
               try{h.recoverMediaError();}catch(_){}
               break;

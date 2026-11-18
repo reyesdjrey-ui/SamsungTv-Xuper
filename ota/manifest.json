@@ -1,10 +1,10 @@
 {
-  "rev": 10,
-  "version": "3.0.0-ota10",
+  "rev": 11,
+  "version": "3.0.0-ota11",
   "minBaseRev": 1,
-  "bundle": "bundle-10.json",
-  "sha256": "cf8782717c14f29e53a23467aa3f85f1539375e1979351bac8dfea196b4222e7",
-  "sig": "c414a41932619f329d4db62d331070cd",
-  "notes": "Experimentos: evitar downgrade OTA a main rev4 y dejar Todos solo con servidor principal",
-  "updatedAt": "2026-11-18T05:26:05.698Z"
+  "bundle": "bundle-11.json",
+  "sha256": "8692e518ce17704cb2636a0519bc8486ad0eadca2b61994c4bf2e2cfa3bd8b4c",
+  "sig": "1728636be7f957f46ebe11ccd086dab0",
+  "notes": "LiveTV: fallback WebAudio + MSE single SourceBuffer para Tizen 5-7 y emuladores",
+  "updatedAt": "2026-11-18T06:01:24.902Z"
 }
