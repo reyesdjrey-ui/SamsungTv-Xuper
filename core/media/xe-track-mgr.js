@@ -164,7 +164,7 @@
   var code=String(lang||'').toLowerCase().replace(/_/g,'-').trim();
   if(/^(es-(419|mx|ar|co|pe|cl|lat)|esl|lat|latino)/.test(code))return 'Español Latino';
   if(/^(es-es|castellano|esp|spain|españa)/.test(code))return 'Español España';
-  if(/^(es|spa|spanish|español)$/.test(code))return 'Español Latino';
+  if(/^(es|spa|spanish|español)$/.test(code))return 'Español';
   if(/^(pt-br|por-br|brasil|brazil)/.test(code))return 'Portugués (Brasil)';
   if(/^(pt-pt|por-pt|portugal)/.test(code))return 'Portugués (Portugal)';
   if(/^(pt|por|portuguese|portugu[eé]s)/.test(code))return 'Portugués';

@@ -305,6 +305,15 @@
     var mdDuration = mdVer === 1
       ? readU64(buf, mdhd.start + mdhd.hdr + 24)
       : readU32(buf, mdhd.start + mdhd.hdr + 16);
+    var langOff = mdhd.start + mdhd.hdr + (mdVer === 1 ? 28 : 20);
+    var langRaw = (langOff + 2 <= mdhd.end) ? ((buf[langOff] << 8) | buf[langOff + 1]) : 0;
+    var trackLang = '';
+    if (langRaw) {
+      var lc1 = ((langRaw >> 10) & 0x1f), lc2 = ((langRaw >> 5) & 0x1f), lc3 = (langRaw & 0x1f);
+      if (lc1 >= 1 && lc1 <= 26 && lc2 >= 1 && lc2 <= 26 && lc3 >= 1 && lc3 <= 26) {
+        trackLang = String.fromCharCode(lc1 + 96, lc2 + 96, lc3 + 96);
+      }
+    }
     var handler = fourcc(buf, hdlr.start + hdlr.hdr + 8);
     if (handler !== 'vide' && handler !== 'soun') return null;
 
@@ -424,6 +433,7 @@
     return {
       id: trackId,
       handler: handler,
+      lang: trackLang || 'und',
       codec: codec,
       timescale: timescale,
       durationSec: curDts / timescale || mdDuration / timescale || 0,
@@ -580,6 +590,7 @@
     if (s.loopTimer) { clearTimeout(s.loopTimer); s.loopTimer = null; }
     try {
       if (s.video) {
+        if (s.audioAdapter && s.video._cactusAudio === s.audioAdapter) s.video._cactusAudio = null;
         s.video.removeEventListener('seeking', s.onSeeking);
         s.video.removeEventListener('timeupdate', s.onTimeUpdate);
         s.video.removeEventListener('ended', s.onEnded);
@@ -706,12 +717,15 @@
       var buf = infoMoov.moov;
       var boxes = findBoxes(buf, 8, buf.length);
       var hasMvex = !!findBox(buf, 8, buf.length, 'mvex');
-      var vTrack = null, aTrack = null;
+      var vTrack = null, aTracks = [];
       for (var i = 0; i < boxes.length; i++) {
         if (boxes[i].type === 'trak') {
           var t = parseTrack(buf, boxes[i]);
           if (t && t.handler === 'vide' && !vTrack) vTrack = t;
-          else if (t && t.handler === 'soun' && !aTrack) aTrack = t;
+          else if (t && t.handler === 'soun') {
+            var aCandMime = 'audio/mp4; codecs="' + t.codec + '"';
+            if (MediaSourceCtor.isTypeSupported(aCandMime)) aTracks.push(t);
+          }
         }
       }
       if (!vTrack) throw Error('El MP4 no contiene una pista de vídeo compatible.');
@@ -720,9 +734,24 @@
       if (!MediaSourceCtor.isTypeSupported(vMime)) {
         throw Error('Códec de vídeo MP4 no soportado por MSE en este TV: ' + vTrack.codec);
       }
-      if (aTrack) {
-        var aMime = 'audio/mp4; codecs="' + aTrack.codec + '"';
-        if (!MediaSourceCtor.isTypeSupported(aMime)) aTrack = null;
+      var preferredAudio = (w.CactusTracks && aTracks.length) ? w.CactusTracks.preferredIndex(aTracks, info && info.audioLanguage) : -1;
+      var audioIndex = aTracks.length ? Math.max(0, Math.min(aTracks.length - 1, (info && info.audioIndex != null) ? (Number(info.audioIndex) || 0) : (preferredAudio >= 0 ? preferredAudio : 0))) : -1;
+      var aTrack = audioIndex >= 0 ? aTracks[audioIndex] : null;
+      if (aTracks.length) {
+        s.audioAdapter = {
+          tracks: aTracks.map(function (tr) {
+            return { lang: tr.lang || 'und', label: w.CactusTracks ? w.CactusTracks.label(tr.lang) : (tr.lang || 'Idioma no identificado') };
+          }),
+          selected: audioIndex,
+          select: function (idx) {
+            if (idx < 0 || idx >= aTracks.length) return Promise.reject(Error('Pista no disponible'));
+            if (idx === s.audioAdapter.selected) return Promise.resolve(true);
+            var curResume = (s.video && isFinite(s.video.currentTime)) ? s.video.currentTime : 0;
+            var nextInfo = Object.assign({}, info || {}, { resume: curResume, startTime: curResume, audioIndex: idx });
+            return start(player, nextInfo);
+          }
+        };
+        video._cactusAudio = s.audioAdapter;
       }
 
       if (hasMvex || vTrack.sampleCount === 0) {

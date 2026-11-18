@@ -4126,7 +4126,8 @@
   try {
     setTimeout(function () {
       try {
-        var ver = (w.XuperOTA && w.XuperOTA.BASE_VERSION) || '3.0.0';
+        var ver = (w.XuperOTA && w.XuperOTA.BASE_VERSION) || '3.0.1';
+        if (!/-exp/i.test(ver)) return;
         var stRaw = w.localStorage && w.localStorage.getItem('xuper.ota.boot_state');
         var rev = 0;
         if (stRaw) { try { rev = JSON.parse(stRaw).rev || 0; } catch (_) {} }

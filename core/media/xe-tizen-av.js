@@ -226,8 +226,8 @@
     if(/^(pt|por|portuguese|portugu[eé]s)/.test(code))return 'Portugués';
     if(/^(es-es|castellano|esp|spain|españa)/.test(code))return 'Español España';
     if(/^(es-(419|mx|ar|co|pe|cl|lat)|esl|lat|latino)/.test(code))return 'Español Latino';
-    if(/^(es|spa|spanish|español)$/.test(code))return 'Español Latino';
-    var names={es:'Español Latino',spa:'Español Latino',esp:'Español España','es-es':'Español España',esl:'Español Latino','es-lat':'Español Latino',en:'Inglés',eng:'Inglés',fr:'Francés',fre:'Francés',fra:'Francés',ja:'Japonés',jpn:'Japonés',de:'Alemán',ger:'Alemán',deu:'Alemán',ita:'Italiano',it:'Italiano',ko:'Coreano',kor:'Coreano',und:'Idioma no identificado'};
+    if(/^(es|spa|spanish|español)$/.test(code))return 'Español';
+    var names={es:'Español',spa:'Español',esp:'Español España','es-es':'Español España',esl:'Español Latino','es-lat':'Español Latino',en:'Inglés',eng:'Inglés',fr:'Francés',fre:'Francés',fra:'Francés',ja:'Japonés',jpn:'Japonés',de:'Alemán',ger:'Alemán',deu:'Alemán',ita:'Italiano',it:'Italiano',ko:'Coreano',kor:'Coreano',und:'Idioma no identificado'};
     return names[code]||names[code.split('-')[0]]||String(lang||'Idioma no identificado');
   }
   function tracks(){
