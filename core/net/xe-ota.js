@@ -2,8 +2,8 @@
 (function (w, d) {
   "use strict";
 
-  var BASE_REV = 1;
-  var BASE_VERSION = "3.0.0";
+  var BASE_REV = 10;
+  var BASE_VERSION = "3.0.0-exp";
   var OTA_BASE_URL = "https://reyesdjrey-ui.github.io/SamsungTv-Xuper/ota/";
   var MANIFEST_URL = OTA_BASE_URL + "manifest.json";
   var OTA_SALT = "EcLex_0TA_Sh13ld_#2026_S4msungTv_Xup3r";
@@ -335,6 +335,9 @@
       if (cached && Number(cached.rev || 0) <= BASE_REV) {
         cached = null;
         idbClearActive();
+      }
+      if (st && Number(st.rev || 0) <= BASE_REV) {
+        writeBootState({ rev: BASE_REV, fails: 0 });
       }
       if (cached && st && Number(st.rev) === Number(cached.rev) && Number(st.fails || 0) >= 2) {
         console.warn("[xe-ota] Rollback automatico de rev", cached.rev, "a base", BASE_VERSION);

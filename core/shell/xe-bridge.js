@@ -280,18 +280,6 @@
       masterRefreshInflight = null;
       var chs = normalizePortalChannelList(list);
       if (chs.length > 0) {
-        if (w.__ESPN_CHANNELS && w.__ESPN_CHANNELS.length) {
-          for (var eIdx = 0; eIdx < w.__ESPN_CHANNELS.length; eIdx++) {
-            var ech = w.__ESPN_CHANNELS[eIdx];
-            var exists = false;
-            for (var cIdx = 0; cIdx < chs.length; cIdx++) {
-              if (chs[cIdx].channelCode === ech.channelCode) { exists = true; break; }
-            }
-            if (!exists) {
-              chs.push(ech);
-            }
-          }
-        }
         liveChannelsCache[76182] = chs;
         liveChannelsCacheTs[76182] = Date.now();
         liveChannelsReal[76182] = true;
@@ -3130,7 +3118,7 @@
           if (bd) return callback(null, { returnValue: true, item: bd.item, episodes: bd.episodes, seasons: bd.seasons });
         }
         if (method === 'liveChannels') {
-          return callback(null, { returnValue: true, channels: getBundledChannels() });
+          return callback(null, { returnValue: true, channels: getBundledChannels(), isFallback: true });
         }
         if (method === 'liveCategories') {
           return callback(null, { returnValue: true, categories: buildDefaultLiveCategories(false) });
@@ -3578,7 +3566,7 @@
               callback(null, { returnValue: true, channels: favList });
             }, 0);
           }
-          if (Number(colId) === 76208) {
+          if (Number(colId) === 76208 || colId === 'addons') {
             return setTimeout(function() {
               callback(null, { returnValue: true, channels: [] });
             }, 0);
@@ -3672,32 +3660,29 @@
                 }
                 var extraPromise = null;
                 if (cidNum === 76182) {
-                  // Completar en Todos los canales exclusivos que el servidor solo lista en subcategorías específicas
+                  // Todos (76182): SOLO canales del servidor principal (completando subcategorías del mismo portal que el índice 76182 omite)
                   var extraPortalCols = [77977, 76205, 76197, 76191, 76194, 76192];
-                  var extraPortalPromise = Promise.all(extraPortalCols.map(function (exCid) {
-                    return fetchAllLiveColumnPages(client, exCid).then(function (exList) {
-                      return normalizePortalChannelList(exList);
-                    }).catch(function () { return []; });
-                  })).then(function (colArrays) {
-                    var flat = [];
-                    for (var cai = 0; cai < colArrays.length; cai++) {
-                      var arr = colArrays[cai] || [];
-                      for (var ai = 0; ai < arr.length; ai++) {
-                        if (arr[ai] && arr[ai].channelCode && !seenPortalCodes[arr[ai].channelCode]) {
-                          seenPortalCodes[arr[ai].channelCode] = true;
-                          flat.push(arr[ai]);
+                  var extraPortalPromise = Promise.race([
+                    Promise.all(extraPortalCols.map(function (exCid) {
+                      return fetchAllLiveColumnPages(client, exCid).then(function (exList) {
+                        return normalizePortalChannelList(exList);
+                      }).catch(function () { return []; });
+                    })).then(function (colArrays) {
+                      var flat = [];
+                      for (var cai = 0; cai < colArrays.length; cai++) {
+                        var arr = colArrays[cai] || [];
+                        for (var ai = 0; ai < arr.length; ai++) {
+                          if (arr[ai] && arr[ai].channelCode && !seenPortalCodes[arr[ai].channelCode]) {
+                            seenPortalCodes[arr[ai].channelCode] = true;
+                            flat.push(arr[ai]);
+                          }
                         }
                       }
-                    }
-                    return flat;
-                  });
-                  extraPromise = Promise.all([
-                    extraPortalPromise,
-                    fetchUnifiedEspnChannels().catch(function () { return []; }),
-                    fetchEpicSportsChannels().catch(function () { return []; }),
-                    fetchPortalCategoryChannels().catch(function () { return []; }),
-                    fetchEpic247Channels().catch(function () { return []; })
+                      return flat;
+                    }),
+                    new Promise(function (resolve) { setTimeout(function () { resolve([]); }, 5000); })
                   ]);
+                  extraPromise = Promise.all([extraPortalPromise]);
                 } else if (cidNum === 76206) {
                   extraPromise = Promise.all([
                     fetchEpicSportsChannels().catch(function () { return []; }),
@@ -3741,8 +3726,9 @@
                   return callback(null, { returnValue: true, channels: arr || [] });
                 });
               }
-              var fallback = (liveChannelsReal[76182] && liveChannelsCache[76182] && liveChannelsCache[76182].length && cidNum === 76182) ? liveChannelsCache[76182] : getBundledChannels();
-              return callback(null, { returnValue: true, channels: cidNum === 76182 ? fallback : [] });
+              var hasCachedTodos = !!(liveChannelsReal[76182] && liveChannelsCache[76182] && liveChannelsCache[76182].length && cidNum === 76182);
+              var fallback = hasCachedTodos ? liveChannelsCache[76182] : getBundledChannels();
+              return callback(null, { returnValue: true, channels: cidNum === 76182 ? fallback : [], isFallback: !hasCachedTodos });
             }).catch(function (err) {
               console.warn('[liveChannels category fetch error, using fallback]', err);
               if (countryPair || params.countryFolder || params.m3uUrl || params.m3uUrls) {
@@ -3755,13 +3741,15 @@
                   return callback(null, { returnValue: true, channels: [] });
                 });
               }
-              var fallback = (liveChannelsReal[76182] && liveChannelsCache[76182] && liveChannelsCache[76182].length) ? liveChannelsCache[76182] : getBundledChannels();
-              return callback(null, { returnValue: true, channels: fallback });
+              var hasCachedErr = !!(liveChannelsReal[76182] && liveChannelsCache[76182] && liveChannelsCache[76182].length);
+              var fallback = hasCachedErr ? liveChannelsCache[76182] : getBundledChannels();
+              return callback(null, { returnValue: true, channels: fallback, isFallback: !hasCachedErr });
             });
           }
-          var fallbackChs = (liveChannelsReal[colId] && liveChannelsCache[colId] && liveChannelsCache[colId].length) ? liveChannelsCache[colId] : getBundledChannels();
+          var hasCachedOffline = !!(liveChannelsReal[colId] && liveChannelsCache[colId] && liveChannelsCache[colId].length);
+          var fallbackChs = hasCachedOffline ? liveChannelsCache[colId] : getBundledChannels();
           return setTimeout(function() {
-            callback(null, { returnValue: true, channels: fallbackChs });
+            callback(null, { returnValue: true, channels: fallbackChs, isFallback: !hasCachedOffline });
           }, 0);
         }
 
@@ -4088,7 +4076,7 @@
           return callback(null, { returnValue: true, root: params.root || 'movies', items: getBundledHome(params.root || 'movies') });
         }
         if (method === 'liveChannels') {
-          return callback(null, { returnValue: true, channels: getBundledChannels() });
+          return callback(null, { returnValue: true, channels: getBundledChannels(), isFallback: true });
         }
         if (method === 'liveCategories') {
           return callback(null, { returnValue: true, categories: buildDefaultLiveCategories(false) });

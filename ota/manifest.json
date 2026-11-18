@@ -1,10 +1,10 @@
 {
-  "rev": 9,
-  "version": "3.0.0-ota9",
+  "rev": 10,
+  "version": "3.0.0-ota10",
   "minBaseRev": 1,
-  "bundle": "bundle-9.json",
-  "sha256": "c6c8688b05528b28026bb85f26568c3ce62aea8860f7d298de043d1ae0df6f6d",
-  "sig": "c9e9f7c40b5a076a2c36a323dfeeb2e1",
-  "notes": "Actualizacion OTA rev 9",
-  "updatedAt": "2026-11-18T04:44:21.678Z"
+  "bundle": "bundle-10.json",
+  "sha256": "cf8782717c14f29e53a23467aa3f85f1539375e1979351bac8dfea196b4222e7",
+  "sig": "c414a41932619f329d4db62d331070cd",
+  "notes": "Experimentos: evitar downgrade OTA a main rev4 y dejar Todos solo con servidor principal",
+  "updatedAt": "2026-11-18T05:26:05.698Z"
 }
