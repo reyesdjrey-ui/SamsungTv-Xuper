@@ -4,7 +4,11 @@
 
   var BASE_REV = 15;
   var BASE_VERSION = "3.0.3-t3exp";
-  var OTA_BASE_URL = "https://reyesdjrey-ui.github.io/SamsungTv-Xuper/ota/tizen3-exp/";
+  var OTA_MIRRORS = [
+    "https://cdn.jsdelivr.net/gh/reyesdjrey-ui/SamsungTv-Xuper@main/ota/tizen3-exp/",
+    "https://reyesdjrey-ui.github.io/SamsungTv-Xuper/ota/tizen3-exp/"
+  ];
+  var OTA_BASE_URL = OTA_MIRRORS[0];
   var MANIFEST_URL = OTA_BASE_URL + "manifest.json";
   var OTA_SALT = "EcLex_0TA_Sh13ld_#2026_S4msungTv_Xup3r";
   var DB_NAME = "xuper_ota_v1";
@@ -349,11 +353,24 @@
     step();
   }
 
+  function xhrTextWithMirrors(relPath, timeoutMs, cb) {
+    var idx = 0;
+    function next() {
+      if (idx >= OTA_MIRRORS.length) return cb(new Error("all mirrors failed"), null);
+      var url = OTA_MIRRORS[idx++] + relPath;
+      xhrText(url, timeoutMs, function (err, txt) {
+        if (!err && txt) return cb(null, txt);
+        next();
+      });
+    }
+    next();
+  }
+
   function fetchBundle(manifest, cb) {
     var rel = String(manifest.bundle || "").replace(/^\/+/, "");
     if (!rel || /\.\./.test(rel)) return cb(null);
-    var bUrl = OTA_BASE_URL + rel + "?v=" + encodeURIComponent(String(manifest.rev));
-    xhrText(bUrl, BUNDLE_TIMEOUT_MS, function (err, txt) {
+    var relPath = rel + "?v=" + encodeURIComponent(String(manifest.rev));
+    xhrTextWithMirrors(relPath, BUNDLE_TIMEOUT_MS, function (err, txt) {
       if (err || !txt) return cb(null);
       var actualSha = sha256Hex(txt);
       if (!actualSha || actualSha !== String(manifest.sha256).toLowerCase()) {
@@ -407,9 +424,9 @@
 
       cachedRef = cached;
       var curRev = cached ? Number(cached.rev) : BASE_REV;
-      var mUrl = MANIFEST_URL + "?t=" + Math.floor(Date.now() / 300000);
+      var mRel = "manifest.json?t=" + Math.floor(Date.now() / 300000);
 
-      xhrText(mUrl, MANIFEST_TIMEOUT_MS, function (err, txt) {
+      xhrTextWithMirrors(mRel, MANIFEST_TIMEOUT_MS, function (err, txt) {
         if (err || !txt) {
           bootOnce(cached);
           return;
