@@ -2379,6 +2379,9 @@ body.cactus-av-active #player-stage,
   height: 100%;
   background: radial-gradient(circle at center, rgba(15, 23, 42, 0.88) 0%, rgba(3, 7, 18, 0.96) 100%);
 }
+.player-live-loader.is-solid-curtain .live-loader-backdrop {
+  background: #030712;
+}
 .live-loader-content {
   position: relative;
   z-index: 2;
