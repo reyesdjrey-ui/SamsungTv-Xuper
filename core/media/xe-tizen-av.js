@@ -7,7 +7,7 @@
   var audioTracks = [], subtitleTracks = [], currentAudio = -1, currentSubtitle = -1, duration = 0;
   var externalCaptions=null,captionClock=null,captionTimer=null,imageCaptionWarned=false;
   var SAMPLE = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
-  var btns = [], lastSeekAt = 0, queuedSeek = null, seekTarget = 0, seekTimer = null, seekTimeout = null, lastPosition = 0;
+  var btns = [], lastSeekAt = 0, queuedSeek = null, seekTarget = 0, seekTimer = null, seekTimeout = null, lastPosition = 0, seekingResetStamp = 0;
   function el(id) {
     if (id === 'player') return document.getElementById('screen-player') || document.getElementById('player');
     if (id === 'video') return document.getElementById('player-video') || document.getElementById('video');
@@ -193,6 +193,7 @@
     var target=Math.max(1000,Math.min(duration-1000,Math.round(value)));
     clearCaption();
     lastPosition=target;
+    seekingResetStamp++;
     if(captionClock){captionClock.currentTime=target/1000;dispatchTimeUpdate(captionClock);}
     if(busy||Date.now()-lastSeekAt<250){
       queuedSeek=target;clearTimeout(seekTimer);
@@ -781,10 +782,11 @@
                 if(spinner)spinner.hidden=true;
                 if(toast)toast.hidden=true;
                 updateProgress();showHUD(true);
-                var stallLastPos=-1,stallSec=0,liveTicks=0;
+                var stallLastPos=-1,stallSec=0,liveTicks=0,vodStallSec=0,lastSeekStamp=seekingResetStamp;
                 tick=setInterval(function(){
                   if(my!==session||!active)return;
                   updateProgress();
+                  if(lastSeekStamp!==seekingResetStamp){lastSeekStamp=seekingResetStamp;vodStallSec=0;stallLastPos=lastPosition;}
                   if(isLive&&playing&&state()==='PLAYING'){
                     liveTicks++;
                     if(lastPosition===stallLastPos&&(lastPosition>0||liveTicks>12)){
@@ -802,6 +804,22 @@
                       }
                     }else{
                       stallLastPos=lastPosition;stallSec=0;
+                    }
+                  }else if(!isLive&&playing&&state()==='PLAYING'&&!busy&&queuedSeek===null){
+                    if(lastPosition===stallLastPos&&lastPosition>0){
+                      vodStallSec++;
+                      if(vodStallSec>=20){
+                        vodStallSec=0;
+                        if((opts._vodStallRetry||0)<2){
+                          var resumeSec=Math.floor(lastPosition/1000);
+                          console.warn('[Cactus AVPlay] VOD frozen >=20s, resuming at '+resumeSec+'s:',opts.url);
+                          var vodRetryOpts=Object.assign({},opts,{startTime:resumeSec,resume:resumeSec,_vodStallRetry:(opts._vodStallRetry||0)+1});
+                          var vodStarter=(window.CactusAVPlay&&typeof window.CactusAVPlay.start==='function')?window.CactusAVPlay.start:start;
+                          vodStarter(vodRetryOpts).catch(function(){});
+                        }
+                      }
+                    }else{
+                      stallLastPos=lastPosition;vodStallSec=0;
                     }
                   }
                 },1000);

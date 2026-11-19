@@ -452,6 +452,13 @@
       if(!s.video || !s.video.currentSrc || (ve && ve.code === 4 && (!s.video.src || s.video.src === ''))) return;
       var c = ve ? ve.code : 0;
       var m = ve ? (ve.message || '') : '';
+      if(s.onMuxedFallback && (c === 4 || c === 3)){
+        finished=true;clear(false);
+        var mxFn = s.onMuxedFallback; s.onMuxedFallback = null;
+        console.warn('[LiveTV] Single-muxed MSE rechazado (err '+c+'), intentando WebAudio fallback');
+        mxFn().then(resolve,reject);
+        return;
+      }
       if(s.onAudioFallback && s.hasAudio && !s.noAudio){
         finished=true;clear(false);
         s.noAudio=true;w.__mseNoAudio=true;
@@ -475,9 +482,13 @@
     s.rejectStart=bad;
     s._triggerDualFallback=function(){
       if(finished || s.singleBufAudio || !s.onDualBufferFallback)return false;
+      var cfg = w.XuperEngineConfig || {};
+      var isModern = (cfg.tier === 'modern' && !cfg.isEmulator);
       finished=true;clear(false);
-      s.singleBufAudio=true;w.__xeLiveSingleBufAudio=true;
-      console.warn('[LiveTV] Doble SourceBuffer rechazado, activando MSE video + WebAudio');
+      if(!isModern || cfg.isEmulator){
+        w.__xeLivePreferMuxed=true;
+      }
+      console.warn('[LiveTV] Doble SourceBuffer rechazado, activando modo single-SourceBuffer');
       s.onDualBufferFallback().then(resolve,reject);
       return true;
     };
@@ -487,37 +498,65 @@
     });
     Promise.resolve().then(start).catch(bad);
   });}
-  function liveMSEStart(s,first,segno,preparsed){
+  function liveMSEStart(s,first,segno,preparsed,singleMuxed){
     var parsed=preparsed||w.CactusFmp4.demux(new Uint8Array(first));
     var v=parsed.video,a=(!s.noAudio&&!w.__mseNoAudio&&parsed.audio)?parsed.audio[0]:null;
     if(!v||!(/^hvc1\./.test(v.codec)||/^avc1\./.test(v.codec)))throw Error('Canal sin pista de vídeo compatible.');
     var mimeV='video/mp4; codecs="'+v.codec+'"',mimeA=a?'audio/mp4; codecs="'+a.codec+'"':null;
-    if(!MS||!MS.isTypeSupported(mimeV))throw Error('Este Samsung no admite el códec de vídeo ('+v.codec+') a través de MSE.');
-    if(a&&!MS.isTypeSupported(mimeA)){a=null;mimeA=null;}
+    var mimeMux=(singleMuxed&&a)?('video/mp4; codecs="'+v.codec+','+a.codec+'"'):null;
+    var useMuxed=false;
+    if(mimeMux&&MS&&MS.isTypeSupported(mimeMux)){
+      useMuxed=true;
+    }else if(!MS||!MS.isTypeSupported(mimeV)){
+      throw Error('Este Samsung no admite el códec de vídeo ('+v.codec+') a través de MSE.');
+    }
+    if(!useMuxed&&a&&!MS.isTypeSupported(mimeA)){a=null;mimeA=null;}
     s.hasAudio=!!a;
-    s.onAudioFallback=function(){
-      if(s.url)try{URL.revokeObjectURL(s.url);}catch(_){}
-      return liveMSEStart(s,first,segno,preparsed);
-    };
+    if(useMuxed){
+      s.onMuxedFallback=function(){
+        if(s.url)try{URL.revokeObjectURL(s.url);}catch(_){}
+        s.singleBufAudio=true;
+        if(!((w.XuperEngineConfig||{}).tier==='modern'&&!(w.XuperEngineConfig||{}).isEmulator)) w.__xeLiveSingleBufAudio=true;
+        return h264Start(s);
+      };
+    }else{
+      s.onAudioFallback=function(){
+        if(s.url)try{URL.revokeObjectURL(s.url);}catch(_){}
+        return liveMSEStart(s,first,segno,preparsed,false);
+      };
+    }
     var ms=new MS();s.ms=ms;s.url=URL.createObjectURL(ms);s.video.src=s.url;
     return waitPlaying(s,function(){return new Promise(function(resolve,reject){
       ms.addEventListener('sourceopen',function(){
         if(s.stopped||playing!==s||s.ms!==ms||ms.readyState!=='open')return;
-        var vb=ms.addSourceBuffer(mimeV),ab=a?ms.addSourceBuffer(mimeA):null;
-        append(vb,w.CactusFmp4.initSegment(v)).then(function(){
-          return (ab&&a)?append(ab,w.CactusFmp4.initSegment(a)):null;
+        var vb=ms.addSourceBuffer(useMuxed?mimeMux:mimeV);
+        var ab=(!useMuxed&&a)?ms.addSourceBuffer(mimeA):null;
+        var initTracks=(useMuxed&&a)?[v,a]:v;
+        append(vb,w.CactusFmp4.initSegment(initTracks)).then(function(){
+          return (!useMuxed&&ab&&a)?append(ab,w.CactusFmp4.initSegment(a)):null;
         }).then(function(){
           if(s.stopped||playing!==s||s.ms!==ms)return;
-          var videoOrigin=v.samples[0].dts, audioOrigin=(ab&&a)?a.samples[0].dts:0, hints={video:{params:v.params,sps:v.sps}},seq=1,done={};
+          var aRate=(a&&a.timescale)||48000;
+          var videoOrigin=v.samples[0].dts, audioOrigin=a?a.samples[0].dts:0;
+          var commonOriginSec=(useMuxed&&a)?Math.min(videoOrigin/90000,audioOrigin/aRate):0;
+          var vStartBase=useMuxed?Math.max(0,Math.round(videoOrigin-commonOriginSec*90000)):0;
+          var aStartBase=useMuxed&&a?Math.max(0,Math.round(audioOrigin-commonOriginSec*aRate)):0;
+          var hints={video:{params:v.params,sps:v.sps}},seq=1,done={};
           done[segno]=true;
           note(s,'Transmitiendo señal en vivo…');
-          var appV=append(vb,w.CactusFmp4.mediaSegment(v,seq,0));
-          var appA=(ab&&a&&a.samples.length)?appV.then(function(){
-            return append(ab,w.CactusFmp4.mediaSegment(a,seq,Math.max(0,Math.round(a.samples[0].dts-audioOrigin))));
-          }):appV;
-          return appA.then(function(){
+          var appFirst;
+          if(useMuxed&&a&&a.samples.length){
+            appFirst=append(vb,w.CactusFmp4.mediaSegment([v,a],seq,[vStartBase,aStartBase]));
+          }else{
+            var appV=append(vb,w.CactusFmp4.mediaSegment(v,seq,vStartBase));
+            appFirst=(ab&&a&&a.samples.length)?appV.then(function(){
+              return append(ab,w.CactusFmp4.mediaSegment(a,seq,Math.max(0,Math.round(a.samples[0].dts-audioOrigin))));
+            }):appV;
+          }
+          return appFirst.then(function(){
             if(s.stopped||playing!==s||s.ms!==ms)return;
             seq++;
+            try{s.video.muted=false;s.video.volume=1;}catch(_){}
             try{s.video.play().catch(function(){});}catch(_){}
             function liveStep(){
               if(s.stopped||playing!==s||s.ms!==ms)return;
@@ -537,16 +576,24 @@
                   getSegment(s,key).then(function(part){
                     if(s.stopped||playing!==s||s.ms!==ms)return;
                     var mp4=w.CactusFmp4.demux(new Uint8Array(part),hints);
-                    var video=mp4.video,audio=(ab&&mp4.audio)?mp4.audio[0]:null;
+                    var video=mp4.video,audio=((useMuxed||ab)&&mp4.audio)?mp4.audio[0]:null;
                     if(!video||!video.samples.length)return processChunk(n+1);
                     if(video.codec!==v.codec)throw Error('El canal cambió de códec de vídeo durante la emisión.');
                     hints={video:{params:video.params,sps:video.sps}};
-                    var tbase=Math.max(0,Math.round(video.samples[0].dts-videoOrigin));
-                    var appV2=append(vb,w.CactusFmp4.mediaSegment(video,seq,tbase));
-                    var appA2=(ab&&audio&&audio.samples.length)?appV2.then(function(){
-                      return append(ab,w.CactusFmp4.mediaSegment(audio,seq,Math.max(0,Math.round(audio.samples[0].dts-audioOrigin))));
-                    }):appV2;
-                    return appA2.then(function(){
+                    var tbase=useMuxed
+                      ?Math.max(0,Math.round(video.samples[0].dts-commonOriginSec*90000))
+                      :Math.max(0,Math.round(video.samples[0].dts-videoOrigin));
+                    var appChunk;
+                    if(useMuxed&&a&&audio&&audio.samples.length){
+                      var abaseMux=Math.max(0,Math.round(audio.samples[0].dts-commonOriginSec*aRate));
+                      appChunk=append(vb,w.CactusFmp4.mediaSegment([video,audio],seq,[tbase,abaseMux]));
+                    }else{
+                      var appV2=append(vb,w.CactusFmp4.mediaSegment(video,seq,tbase));
+                      appChunk=(ab&&audio&&audio.samples.length)?appV2.then(function(){
+                        return append(ab,w.CactusFmp4.mediaSegment(audio,seq,Math.max(0,Math.round(audio.samples[0].dts-audioOrigin))));
+                      }):appV2;
+                    }
+                    return appChunk.then(function(){
                       seq++;
                       if(s.segCache)delete s.segCache[key];
                       return trim(vb,s.video.currentTime).then(function(){
@@ -612,6 +659,50 @@
     }
     return null;
   }
+  function parseMoofAudioDurTicks(u8){
+    if(!u8 || u8.length < 28) return 0;
+    var defDur = 0, totalTicks = 0, pos = 0;
+    function scanBoxes(start, end){
+      var p = start;
+      while(p + 8 <= end){
+        var sz = readUint32BE(u8, p);
+        if(sz < 8 || p + sz > end) break;
+        var t0 = u8[p+4], t1 = u8[p+5], t2 = u8[p+6], t3 = u8[p+7];
+        var tag = String.fromCharCode(t0, t1, t2, t3);
+        if(tag === 'moof' || tag === 'traf'){
+          scanBoxes(p + 8, p + sz);
+        }else if(tag === 'tfhd' && p + 16 <= end){
+          var tfFlags = ((u8[p+9] << 16) | (u8[p+10] << 8) | u8[p+11]);
+          var off = p + 16;
+          if(tfFlags & 0x01) off += 8;
+          if(tfFlags & 0x02) off += 4;
+          if((tfFlags & 0x08) && off + 4 <= p + sz) defDur = readUint32BE(u8, off);
+        }else if(tag === 'trun' && p + 16 <= end){
+          var trFlags = ((u8[p+9] << 16) | (u8[p+10] << 8) | u8[p+11]);
+          var sc = readUint32BE(u8, p + 12);
+          var rOff = p + 16;
+          if(trFlags & 0x01) rOff += 4;
+          if(trFlags & 0x04) rOff += 4;
+          var hasDur = !!(trFlags & 0x100);
+          var hasSize = !!(trFlags & 0x200);
+          var hasFlags = !!(trFlags & 0x400);
+          var hasCts = !!(trFlags & 0x800);
+          if(!hasDur){
+            totalTicks += sc * (defDur || 1024);
+          }else{
+            var stride = (hasDur?4:0) + (hasSize?4:0) + (hasFlags?4:0) + (hasCts?4:0);
+            for(var si = 0; si < sc && rOff + 4 <= p + sz; si++){
+              totalTicks += readUint32BE(u8, rOff);
+              rOff += stride;
+            }
+          }
+        }
+        p += sz;
+      }
+    }
+    scanBoxes(0, u8.length);
+    return totalTicks;
+  }
   function createVirtualAudioBridge(s){
     var AC = w.AudioContext || w.webkitAudioContext;
     var ctx = null;
@@ -633,6 +724,7 @@
       ranges: [],
       cursorSec: 0,
       nextScheduleTime: 0,
+      lastNodeEnd: 0,
       activeNodes: [],
       decodedQueue: [],
       gainNode: null,
@@ -651,6 +743,7 @@
       }
       bridge.activeNodes = [];
       bridge.nextScheduleTime = 0;
+      bridge.lastNodeEnd = 0;
     }
     function syncGain(){
       if(!bridge.gainNode || !s.video) return;
@@ -676,18 +769,29 @@
         if(item.startSec > vTime + 4.0) break;
         bridge.decodedQueue.shift();
         try{
-          var src = ctx.createBufferSource();
-          src.buffer = item.ab;
-          src.connect(bridge.gainNode || ctx.destination);
+          var priming = item.primingSec || 0;
+          var usableDur = item.exactDur > 0.02 ? Math.min(item.ab.duration - priming, item.exactDur) : Math.max(0.02, item.ab.duration - priming * 2);
           var offset = Math.max(0, vTime - item.startSec);
           var lead = Math.max(0, item.startSec - vTime);
           var targetStart = nowCtx + lead;
-          if(bridge.nextScheduleTime > nowCtx && Math.abs((bridge.nextScheduleTime - nowCtx) - lead) < 0.25 && offset === 0){
-            targetStart = bridge.nextScheduleTime;
+          if(bridge.lastNodeEnd > nowCtx){
+            var drift = targetStart - bridge.lastNodeEnd;
+            if(Math.abs(drift) < 0.09 && offset === 0){
+              targetStart = bridge.lastNodeEnd;
+            }else if(drift < -0.005){
+              var trimAhead = bridge.lastNodeEnd - targetStart;
+              offset += trimAhead;
+              targetStart = bridge.lastNodeEnd;
+            }
           }
-          var playDur = Math.max(0.01, item.ab.duration - offset);
-          src.start(targetStart, offset, playDur);
+          var playDur = usableDur - offset;
+          if(playDur <= 0.015) continue;
+          var src = ctx.createBufferSource();
+          src.buffer = item.ab;
+          src.connect(bridge.gainNode || ctx.destination);
+          src.start(targetStart, priming + offset, playDur);
           bridge.nextScheduleTime = targetStart + playDur;
+          bridge.lastNodeEnd = bridge.nextScheduleTime;
           bridge.activeNodes.push(src);
           src.onended = function(){
             var idx = bridge.activeNodes.indexOf(this);
@@ -806,15 +910,21 @@
             return;
           }
           var tfdtTicks = parseMoofTfdt(copy);
+          var moofDurTicks = parseMoofAudioDurTicks(copy);
           var comb = new Uint8Array(bridge.initSeg.length + copy.length);
           comb.set(bridge.initSeg, 0);
           comb.set(copy, bridge.initSeg.length);
           ctx.decodeAudioData(comb.buffer, function(ab){
             if(bridge.destroyed) return;
-            var startSec = (tfdtTicks !== null && bridge.timescale > 0) ? (tfdtTicks / bridge.timescale) : bridge.cursorSec;
-            var endSec = startSec + ab.duration;
+            var sr = ab.sampleRate || bridge.timescale || 48000;
+            var ts = bridge.timescale || sr;
+            var exactDur = (moofDurTicks > 0 && ts > 0) ? (moofDurTicks / ts) : 0;
+            var primingSec = (exactDur > 0 && ab.duration > exactDur + 0.01) ? Math.min(0.045, (ab.duration - exactDur) * 0.5) : Math.min(0.025, 1024 / sr);
+            var segDur = exactDur > 0 ? exactDur : Math.max(0.02, ab.duration - primingSec * 2);
+            var startSec = (tfdtTicks !== null && ts > 0) ? (tfdtTicks / ts) : bridge.cursorSec;
+            var endSec = startSec + segDur;
             bridge.cursorSec = Math.max(bridge.cursorSec, endSec);
-            bridge.decodedQueue.push({ startSec: startSec, endSec: endSec, ab: ab });
+            bridge.decodedQueue.push({ startSec: startSec, endSec: endSec, exactDur: segDur, primingSec: primingSec, ab: ab });
             if(bridge.decodedQueue.length > 24) bridge.decodedQueue.shift();
             pumpAudio();
             finishUpdate(startSec, endSec);
@@ -845,12 +955,24 @@
   }
   function h264Start(s){
     if(!w.Hls||!w.Hls.isSupported())return Promise.reject(Error('Hls.js/MSE no está disponible para este canal.'));
-    var useBridge = !!(s.singleBufAudio || w.__xeLiveSingleBufAudio || (w.XuperEngineConfig && w.XuperEngineConfig.isEmulator));
+    var cfg = w.XuperEngineConfig || {};
+    var isModern = (cfg.tier === 'modern' && !cfg.isEmulator);
+    var useBridge = !!(s.singleBufAudio || (!isModern && w.__xeLiveSingleBufAudio));
     s.singleBufAudio = useBridge;
     if(!useBridge){
       s.onDualBufferFallback = function(){
         if(s.hls){try{s.hls.destroy();}catch(_){} s.hls=null;}
         if(s.video){try{s.video.pause();s.video.removeAttribute('src');s.video.load();}catch(_){}}
+        if(!s.singleMuxedTried && s._firstSeg && s._firstSeg.parsed && s._firstSeg.parsed.video && s._firstSeg.parsed.audio && s._firstSeg.parsed.audio.length && MS){
+          var fv = s._firstSeg.parsed.video, fa = s._firstSeg.parsed.audio[0];
+          var muxMime = 'video/mp4; codecs="' + fv.codec + ',' + fa.codec + '"';
+          if(MS.isTypeSupported(muxMime)){
+            s.singleMuxedTried = true;
+            return liveMSEStart(s, s._firstSeg.bytes, s._firstSeg.seq, s._firstSeg.parsed, true);
+          }
+        }
+        s.singleBufAudio = true;
+        if(!isModern) w.__xeLiveSingleBufAudio = true;
         return h264Start(s);
       };
     }
@@ -879,7 +1001,8 @@
               try{h.startLoad();}catch(_){}
               break;
             case w.Hls.ErrorTypes.MEDIA_ERROR:
-              if(!s.hasStartedPlaying && !s.singleBufAudio && s._triggerDualFallback && s._triggerDualFallback()){
+              var isSbDualErr = (d === 'bufferAddCodecError') || (w.__trace && w.__trace.join(' ').indexOf('SB_ERR(audio') !== -1);
+              if(!s.hasStartedPlaying && !s.singleBufAudio && (!isModern || isSbDualErr) && s._triggerDualFallback && s._triggerDualFallback()){
                 return;
               }
               console.warn('[LiveTV] Error multimedia fatal Hls.js, recuperando...', d);
@@ -966,10 +1089,21 @@
         }).catch(function(){}):Promise.resolve();
         return nextProm.then(function(){
           if(playing!==s)throw Error('Sintonización cancelada.');
+          s._firstSeg = { bytes: finalBytes, seq: finalSeq, parsed: result };
           if(result&&result.video&&/^hvc1\./.test(result.video.codec)){
             console.log('[LiveTV] MSE Direct HEVC codec:', result.video.codec, 'vSamples:', result.video.samples.length, 'aTracks:', result.audio?result.audio.length:0);
             note(s,'Canal HEVC: preparando MSE directo…');
-            return liveMSEStart(s,finalBytes,finalSeq,result);
+            return liveMSEStart(s,finalBytes,finalSeq,result,false);
+          }
+          var cfg = w.XuperEngineConfig || {};
+          if((w.__xeLivePreferMuxed || cfg.isEmulator) && result && result.video && result.audio && result.audio.length && MS){
+            var muxMime = 'video/mp4; codecs="' + result.video.codec + ',' + result.audio[0].codec + '"';
+            if(MS.isTypeSupported(muxMime)){
+              console.log('[LiveTV] Using single muxed SourceBuffer:', muxMime);
+              s.singleMuxedTried = true;
+              note(s,'Iniciando reproducción…');
+              return liveMSEStart(s,finalBytes,finalSeq,result,true);
+            }
           }
           console.log('[LiveTV] Using Hls.js engine (h264Start)');
           note(s,'Iniciando reproducción…');return h264Start(s);

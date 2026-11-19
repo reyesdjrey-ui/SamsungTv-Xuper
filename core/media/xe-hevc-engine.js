@@ -47,14 +47,41 @@
     try{video.currentTime=target;}catch(e){finish();return;}
     check();
   });}
+  function renewSession(s){
+    if(!s||!s.sessionOpts||!w.CactusDirect||typeof w.CactusDirect.connect!=='function'){
+      return Promise.reject(Error('Sin sesión renovable'));
+    }
+    if(s._renewing)return s._renewing;
+    s._renewing=w.CactusDirect.connect().then(function(c){
+      return c.stream.getSlbInfo({forceRefresh:true}).then(function(slb){
+        var fresh=c.stream.createCflSession('vod',s.sessionOpts,slb);
+        s.session=fresh;
+        s._renewing=null;
+        return fresh;
+      });
+    }).catch(function(err){
+      s._renewing=null;
+      throw err;
+    });
+    return s._renewing;
+  }
   function request(s,num,attempt){
     attempt=attempt||0;
     var part=s.segments[num];if(!part)return Promise.reject(Error('Segmento no encontrado'));
+    if(s.session&&s.session.expired&&(Date.now()/1000)>=(s.session.expired-150)){
+      renewSession(s).catch(function(){});
+    }
     var req=s.session.mediaRequest('bytes='+part.start+'-'+part.end);
     if(!req || !/^https?:\/\//i.test(req.url))return Promise.reject(Error('Destino multimedia no válido'));
     var ctrl=new AbortController();s.pending=ctrl;
     var timedOut=false,timeout=setTimeout(function(){timedOut=true;ctrl.abort();},25000);
     return fetch(req.url,{method:'GET',headers:req.headers||{},redirect:'follow',cache:'no-store',signal:ctrl.signal}).then(function(r){
+      if((r.status===401||r.status===403)&&attempt<3&&s.sessionOpts){
+        clearTimeout(timeout);if(s.pending===ctrl)s.pending=null;
+        return renewSession(s).then(function(){
+          return request(s,num,attempt+1);
+        });
+      }
       if(r.status!==206)throw Error('El CDN respondió HTTP '+r.status+'; se requiere HTTP 206');
       return r.arrayBuffer();
     }).then(function(data){
@@ -67,7 +94,7 @@
       return data;
     }).catch(function(e){
       clearTimeout(timeout);if(s.pending===ctrl)s.pending=null;
-      if(s.ended)throw e;
+      if(s.ended||active!==s)throw e;
       if(attempt<3){
         return new Promise(function(r){setTimeout(r,500*(attempt+1));}).then(function(){
           return request(s,num,attempt+1);
@@ -84,51 +111,77 @@
     return true;
   }
   function codecMime(kind,codec){return kind+'/mp4; codecs="'+codec+'"';}
+  function waitSbIdle(sb,callback){
+    if(!sb||!sb.updating){callback();return;}
+    var done=false,tm=setTimeout(function(){if(!done){done=true;sb.removeEventListener('updateend',onEnd);callback();}},4000);
+    function onEnd(){if(done)return;done=true;clearTimeout(tm);sb.removeEventListener('updateend',onEnd);callback();}
+    sb.addEventListener('updateend',onEnd);
+  }
+  function tryPruneForQuota(sb,cur,retryCount){
+    if(!sb||!sb.buffered||!sb.buffered.length)return false;
+    for(var b=sb.buffered.length-1;b>=0;b--){
+      if(sb.buffered.start(b)>cur+22){
+        try{sb.remove(sb.buffered.start(b),sb.buffered.end(b));return true;}catch(_){}
+      }
+    }
+    var tiers=retryCount>=2?[2]:(retryCount===1?[6,2]:[10,5,2]);
+    for(var ti=0;ti<tiers.length;ti++){
+      var removeEnd=Math.max(0,cur-tiers[ti]);
+      if(removeEnd>sb.buffered.start(0)+0.5){
+        try{sb.remove(sb.buffered.start(0),removeEnd);return true;}catch(_){}
+      }
+    }
+    return false;
+  }
   function bufferAppend(sb,data,retryCount){
     retryCount=retryCount||0;
     return new Promise(function(resolve,reject){
       if(!sb)return resolve();
       function doAppend(){
+        if(active&&active.ended)return reject(Error('Reproducción cancelada'));
         if(sb.updating){
-          var onWaitEnd=function(){sb.removeEventListener('updateend',onWaitEnd);doAppend();};
-          sb.addEventListener('updateend',onWaitEnd);
+          waitSbIdle(sb,doAppend);
           return;
         }
-        var timeout=setTimeout(function(){cleanup();resolve();},15000);
+        var timeout=setTimeout(function(){cleanup();reject(Error('Tiempo de espera al escribir buffer MSE'));},15000);
         function cleanup(){clearTimeout(timeout);sb.removeEventListener('updateend',ok);sb.removeEventListener('error',bad);}
         function ok(){cleanup();resolve();}
-        function bad(){cleanup();resolve();}
+        function handleQuota(){
+          if(retryCount<3&&sb.buffered&&sb.buffered.length>0){
+            var cur=(active&&active.video?active.video.currentTime:60);
+            if(tryPruneForQuota(sb,cur,retryCount)){
+              waitSbIdle(sb,function(){
+                bufferAppend(sb,data,retryCount+1).then(resolve,reject);
+              });
+              return true;
+            }
+          }
+          return false;
+        }
+        function bad(ev){
+          cleanup();
+          if(ev&&(ev.name==='QuotaExceededError'||ev.code===22||/quota/i.test(ev.message||''))){
+            if(handleQuota())return;
+          }else if(retryCount<1&&sb.buffered&&sb.buffered.length>0){
+            var cur=(active&&active.video?active.video.currentTime:60);
+            if(tryPruneForQuota(sb,cur,retryCount+1)){
+              waitSbIdle(sb,function(){
+                bufferAppend(sb,data,retryCount+1).then(resolve,reject);
+              });
+              return;
+            }
+          }
+          reject(ev||Error('Error al escribir buffer MSE'));
+        }
         sb.addEventListener('updateend',ok);sb.addEventListener('error',bad);
         try{
           sb.appendBuffer(data);
         }catch(e){
           cleanup();
-          if(e&&(e.name==='QuotaExceededError'||e.code===22||/quota/i.test(e.message))){
-            if(retryCount<3&&sb.buffered.length>0){
-              var cur=(active&&active.video?active.video.currentTime:60);
-              var pruned=false;
-              for(var b=sb.buffered.length-1;b>=0;b--){
-                if(sb.buffered.start(b)>cur+30){
-                  try{sb.remove(sb.buffered.start(b),sb.buffered.end(b));pruned=true;break;}catch(_){}
-                }
-              }
-              if(!pruned){
-                var removeEnd=Math.max(0,cur-10);
-                if(removeEnd>sb.buffered.start(0)){
-                  try{sb.remove(sb.buffered.start(0),removeEnd);pruned=true;}catch(_){}
-                }
-              }
-              if(pruned){
-                var onPruneEnd=function(){
-                  sb.removeEventListener('updateend',onPruneEnd);
-                  bufferAppend(sb,data,retryCount+1).then(resolve,resolve);
-                };
-                sb.addEventListener('updateend',onPruneEnd);
-                return;
-              }
-            }
+          if(e&&(e.name==='QuotaExceededError'||e.code===22||/quota/i.test(e.message||''))){
+            if(handleQuota())return;
           }
-          resolve();
+          reject(e||Error('Error al escribir buffer MSE'));
         }
       }
       doAppend();
@@ -138,16 +191,15 @@
     return new Promise(function(resolve){
       if(!sb||!sb.buffered.length)return resolve();
       if(sb.updating){
-        var onEnd=function(){sb.removeEventListener('updateend',onEnd);bufferPrune(sb,now,force).then(resolve);};
-        sb.addEventListener('updateend',onEnd);
+        waitSbIdle(sb,function(){bufferPrune(sb,now,force).then(resolve);});
         return;
       }
       var timeout=null;
       function done(){if(timeout){clearTimeout(timeout);timeout=null;}sb.removeEventListener('updateend',done);resolve();}
       try{
         var start=sb.buffered.start(0);
-        var removeUntil=force?Math.max(0,now-10):(now>35?now-20:-1);
-        if(removeUntil>start+2){
+        var removeUntil=force?Math.max(0,now-6):(now>25?now-14:-1);
+        if(removeUntil>start+1.5){
           timeout=setTimeout(function(){done();},4000);
           sb.addEventListener('updateend',done);sb.remove(start,removeUntil);
           return;
@@ -155,7 +207,7 @@
         if(sb.buffered.length>1){
           var lastIdx=sb.buffered.length-1;
           var lastSt=sb.buffered.start(lastIdx),lastEn=sb.buffered.end(lastIdx);
-          if(lastSt>now+30){
+          if(lastSt>now+26){
             timeout=setTimeout(function(){done();},4000);
             sb.addEventListener('updateend',done);sb.remove(lastSt,lastEn);
             return;
@@ -208,7 +260,11 @@
       // Un salto solicita el intervalo de destino, con un fragmento previo para decodificar.
       s.seekIndex=Math.max(0,segmentAt(s.segments,cur)-1);
       s.seekGeneration=(s.seekGeneration||0)+1;
+      if(s.stallReset)s.stallReset();
       if(s.pending)try{s.pending.abort();}catch(e){}
+      if(s.drainTimer){clearTimeout(s.drainTimer);s.drainTimer=null;}
+      if(s.loopTimer){clearTimeout(s.loopTimer);s.loopTimer=null;}
+      if(s.seekDebounceTimer){clearTimeout(s.seekDebounceTimer);s.seekDebounceTimer=null;}
       say(s,'cargando la posición elegida');
       // Podar búferes viejos futuros al saltar hacia atrás para evitar QuotaExceeded y atasco en waitDrain
       var maxFwd=cur+25;
@@ -223,12 +279,22 @@
           }
         }
       });
+      if(typeof s.wakeLoop==='function'){
+        s.seekDebounceTimer=setTimeout(function(){
+          s.seekDebounceTimer=null;
+          if(!s.ended&&active===s)s.wakeLoop();
+        },95);
+      }
     };
     video.addEventListener('seeking',s.onSeeking);
     active=s;
   }
   function dispose(){
     var s=active;if(!s)return;if(w.CactusProgress)w.CactusProgress.suspend();active=null;s.ended=true;
+    if(s.stallTimer){clearInterval(s.stallTimer);s.stallTimer=null;}
+    if(s.drainTimer){clearTimeout(s.drainTimer);s.drainTimer=null;}
+    if(s.loopTimer){clearTimeout(s.loopTimer);s.loopTimer=null;}
+    if(s.seekDebounceTimer){clearTimeout(s.seekDebounceTimer);s.seekDebounceTimer=null;}
     if(s.cancelStart)s.cancelStart();
     if(s.cancelResume)s.cancelResume();
     if(s.pending)try{s.pending.abort();}catch(e){}
@@ -326,30 +392,105 @@
           var idx=0,sequence=0;
           s.seekGeneration=0;
           var segRetryCount=0;
+          var appendRetryCount=0;
+          var loopRunning=false;
+
+          function getFwdBuf(){
+            if(!s.video||!s.video.buffered||!s.video.buffered.length)return 0;
+            var cur=s.video.currentTime,maxE=cur;
+            for(var b=0;b<s.video.buffered.length;b++){
+              var bSt=s.video.buffered.start(b),bEn=s.video.buffered.end(b);
+              if(cur>=bSt-0.5&&cur<=bEn+0.5){
+                if(bEn>maxE)maxE=bEn;
+              }
+            }
+            return Math.max(0,maxE-cur);
+          }
+
+          // Watchdog contra congelamientos o micro-huecos en Tizen MSE durante series/peliculas
+          var lastWatchTime=-1,stallTicks=0;
+          s.stallReset=function(){lastWatchTime=-1;stallTicks=-2;};
+          s.stallTimer=setInterval(function(){
+            if(s.ended||active!==s||s.ms!==myMs||!s.started||!s.video)return;
+            if(s.video.paused||s.video.seeking){lastWatchTime=s.video.currentTime;stallTicks=0;return;}
+            var cur=s.video.currentTime||0;
+            if(Math.abs(cur-lastWatchTime)<0.05){
+              stallTicks++;
+              if(stallTicks>=3){
+                var jumped=false;
+                if(s.video.buffered&&s.video.buffered.length){
+                  for(var bi=0;bi<s.video.buffered.length;bi++){
+                    var bs=s.video.buffered.start(bi),be=s.video.buffered.end(bi);
+                    if(bs>cur&&bs<=cur+3.5){
+                      try{
+                        console.warn('[CactusHEVC] Saltando micro-hueco MSE:',cur.toFixed(2),'->',bs.toFixed(2));
+                        s.video.currentTime=bs+0.05;
+                        s.video.play().catch(function(){});
+                        jumped=true;
+                        stallTicks=0;
+                      }catch(_){}
+                      break;
+                    }
+                  }
+                }
+                if(!jumped&&stallTicks>=4){
+                  stallTicks=0;
+                  var expectedIdx=segmentAt(s.segments,cur);
+                  if(idx>expectedIdx+3&&getFwdBuf()<1){
+                    console.warn('[CactusHEVC] Buffer atascado lejos del cursor; reajustando idx',idx,'->',expectedIdx);
+                    s.seekIndex=Math.max(0,expectedIdx);
+                    s.seekGeneration=(s.seekGeneration||0)+1;
+                    if(s.pending)try{s.pending.abort();}catch(_){}
+                  }
+                  if(!loopRunning&&!s.seekDebounceTimer){
+                    if(s.drainTimer){clearTimeout(s.drainTimer);s.drainTimer=null;}
+                    if(s.loopTimer){clearTimeout(s.loopTimer);s.loopTimer=null;}
+                    loop();
+                  }else if(s.video.paused===false&&s.video.readyState>=3){
+                    try{s.video.play().catch(function(){});}catch(_){}
+                  }
+                }
+              }
+            }else{
+              lastWatchTime=cur;
+              stallTicks=0;
+            }
+          },1500);
+
+          s.wakeLoop=function(){if(!loopRunning&&!s.seekDebounceTimer)loop();};
+
+          function scheduleLoop(delayMs){
+            if(s.loopTimer){clearTimeout(s.loopTimer);s.loopTimer=null;}
+            s.loopTimer=setTimeout(function(){s.loopTimer=null;loop();},delayMs);
+          }
 
           function loop(){
+            if(loopRunning||s.seekDebounceTimer)return;
             if(done&&!s.started)return;
             if(s.ended||active!==s||s.ms!==myMs)return;
-            if(s.seekIndex!=null){idx=s.seekIndex;s.seekIndex=null;segRetryCount=0;}
+            if(s.seekIndex!=null){idx=s.seekIndex;s.seekIndex=null;segRetryCount=0;appendRetryCount=0;}
             if(idx>=s.segments.length){
               if(myMs.readyState==='open')try{myMs.endOfStream();}catch(e){}
-              setTimeout(loop,500);
+              scheduleLoop(800);
               return;
             }
+            loopRunning=true;
             var generation=s.seekGeneration;
             var reqProm=idx===0?Promise.resolve(null):request(s,idx);
             reqProm.then(function(data){
               segRetryCount=0;
-              if(s.ended||active!==s||s.ms!==myMs||generation!==s.seekGeneration)return loop();
+              if(s.ended||active!==s||s.ms!==myMs||generation!==s.seekGeneration){loopRunning=false;return loop();}
               var parsedSegment;
               try{
                 parsedSegment=idx===0?first:w.CactusFmp4.demux(new Uint8Array(data),hints);
               }catch(demuxErr){
                 console.warn('[CactusHEVC] Error al demuxar segmento '+idx+':',demuxErr);
+                loopRunning=false;
                 idx++;
                 return loop();
               }
               if(!parsedSegment||!parsedSegment.video){
+                loopRunning=false;
                 idx++;
                 return loop();
               }
@@ -365,59 +506,70 @@
                   return bufferAppend(ab,w.CactusFmp4.mediaSegment(a,sequence,audioBase));
                 });
               }
-              return appProm.catch(function(appendErr){
-                console.warn('[CactusHEVC] Error al incorporar fragmento '+idx+' a MSE:',appendErr);
-                return bufferPrune(vb,s.video.currentTime,true).then(function(){
-                  return ab?bufferPrune(ab,s.video.currentTime,true):null;
-                });
-              }).then(function(){
+              return appProm.then(function(){
+                loopRunning=false;
+                appendRetryCount=0;
                 if(s.ended||active!==s||s.ms!==myMs)return;
+                if(generation!==s.seekGeneration)return loop();
                 if(!s.started){
                   s.started=true;
                   say(s,'primeros cuadros incorporados a MSE');
                   s.video.play().catch(function(e){say(s,'pulsa OK para iniciar ('+msg(e)+')');});
                 }
                 idx++;
-                function getFwdBuf(){
-                  if(!s.video||!s.video.buffered||!s.video.buffered.length)return 0;
-                  var cur=s.video.currentTime,maxE=cur;
-                  for(var b=0;b<s.video.buffered.length;b++){
-                    var bSt=s.video.buffered.start(b),bEn=s.video.buffered.end(b);
-                    if(cur>=bSt-0.5&&cur<=bEn+0.5){
-                      if(bEn>maxE)maxE=bEn;
-                    }
-                  }
-                  return Math.max(0,maxE-cur);
-                }
                 function waitDrain(){
                   if(s.ended||active!==s||s.ms!==myMs||s.seekIndex!=null||idx>=s.segments.length)return finishDrain();
                   var fwd=getFwdBuf();
-                  if(s.video.readyState>=1&&fwd>20){
-                    setTimeout(waitDrain,350);
+                  if(s.video.readyState>=1&&fwd>16){
+                    s.drainTimer=setTimeout(waitDrain,350);
                   }else{
                     finishDrain();
                   }
                 }
                 function finishDrain(){
+                  s.drainTimer=null;
                   if(s.ended||active!==s||s.ms!==myMs)return;
                   bufferPrune(vb,s.video.currentTime,false).then(function(){
                     return ab?bufferPrune(ab,s.video.currentTime,false):null;
                   }).then(loop,loop);
                 }
                 waitDrain();
+              },function(appendErr){
+                loopRunning=false;
+                if(s.ended||active!==s||s.ms!==myMs)return;
+                if(generation!==s.seekGeneration)return loop();
+                appendRetryCount++;
+                console.warn('[CactusHEVC] Fallo al incorporar segmento '+idx+' (intento '+appendRetryCount+'):',appendErr);
+                return bufferPrune(vb,s.video.currentTime,true).then(function(){
+                  return ab?bufferPrune(ab,s.video.currentTime,true):null;
+                }).then(function(){
+                  if(s.ended||active!==s||s.ms!==myMs)return;
+                  if(!s.started){bad(appendErr);return;}
+                  if(appendRetryCount<5){
+                    scheduleLoop(450*appendRetryCount);
+                    return;
+                  }
+                  appendRetryCount=0;
+                  idx++;
+                  scheduleLoop(300);
+                });
               });
             },function(e){
+              loopRunning=false;
               if(s.ended||active!==s||s.ms!==myMs)return;
               if(generation!==s.seekGeneration)return loop();
               console.warn('[CactusHEVC] Fallo al pedir segmento '+idx+':',e);
               segRetryCount++;
-              if(segRetryCount<3){
-                setTimeout(loop,1000);
+              if(segRetryCount===2&&s.sessionOpts){
+                renewSession(s).catch(function(){});
+              }
+              if(segRetryCount<5){
+                scheduleLoop(Math.min(4000,900*segRetryCount));
                 return;
               }
               segRetryCount=0;
               idx++;
-              return loop();
+              scheduleLoop(300);
             });
           }
           loop();
@@ -428,7 +580,7 @@
   function start(player,info,legacyStart){
     if(!player||!player.segments||!player.segments.length) return legacyStart(player,info);
     if(!w.CactusFmp4 || !mediaClass)return legacyStart(player,info);
-    var s={segments:player.segments,session:player.session,source:player,legacyStart:legacyStart,subtitles:info&&info.subtitles||player.subtitles||[],pending:null,phase:'consultando segmento inicial',ended:false};
+    var s={segments:player.segments,session:player.session,sessionOpts:player.sessionOpts,source:player,legacyStart:legacyStart,subtitles:info&&info.subtitles||player.subtitles||[],pending:null,_renewing:null,phase:'consultando segmento inicial',ended:false};
     return request(s,0).then(function(data){
       if(!codeType(data))throw Error('El primer fragmento no parece MPEG-TS');
       var parsed;
