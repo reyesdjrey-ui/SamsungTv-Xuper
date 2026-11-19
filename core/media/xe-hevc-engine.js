@@ -1,6 +1,33 @@
 /* Xuper Eclectic HEVC Transmux Engine v2.0.19 */
 (function(w,d){'use strict';
-  var active=null, mediaClass=w.MediaSource||w.WebKitMediaSource;
+  var active=null, startSeq=0, pendingStart=null, mediaClass=w.MediaSource||w.WebKitMediaSource;
+  function isMiniPanel(panel){
+    var det=q('screen-detail');
+    if(panel&&panel.classList&&panel.classList.contains('is-mini'))return true;
+    return !!(det&&det.classList&&det.classList.contains('is-active')&&(!panel||!panel.classList.contains('is-active')));
+  }
+  function syncDisplayMode(){
+    var panel=q('screen-player')||q('player'),video=q('player-video')||q('video'),stage=q('player-stage');
+    if(!panel)return;
+    var mini=isMiniPanel(panel);
+    if(!mini){
+      panel.classList.remove('is-mini');
+      d.documentElement.classList.add('modal-open');
+    }else{
+      panel.classList.add('is-mini');
+      d.documentElement.classList.remove('modal-open');
+    }
+    if(stage)void stage.offsetWidth;
+    if(video){
+      void video.offsetWidth;
+      if(!mini&&active&&!active.ended){
+        try{
+          video.style.webkitTransform='translateZ(0)';
+          setTimeout(function(){try{if(video)video.style.webkitTransform='';}catch(_){}},0);
+        }catch(_){}
+      }
+    }
+  }
   function say(s,msg){
     s.phase=msg;
     if(s.label){
@@ -221,7 +248,7 @@
     var panel=q('screen-player')||q('player'),video=q('player-video')||q('video');if(!panel||!video)throw Error('No se encontró el reproductor Samsung');
     w.CactusVODBrowser.stop();
     s.panel=panel;s.video=video;s.oldMuted=video.muted;
-    var isMini = panel.classList.contains('is-mini') || (typeof ke !== 'undefined' && ke.screen === 'detail');
+    var isMini = isMiniPanel(panel);
     if (!isMini) {
       panel.classList.remove('is-mini');
       d.documentElement.classList.add('modal-open');
@@ -233,7 +260,7 @@
     var titleEl=q('vod-infobar-title')||q('player-title');if(titleEl)titleEl.textContent=title||'Película';
     if(!q('cactus-hevc-vod-style')){
       var style=d.createElement('style');style.id='cactus-hevc-vod-style';
-      style.textContent='#screen-player:not(.is-mini).cactus-hevc-vod #player-video,#player:not(.is-mini).cactus-hevc-vod #video{display:block!important;position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:5;object-fit:contain;background:#000}'+
+      style.textContent='#screen-player:not(.is-mini).cactus-hevc-vod #player-video,#player:not(.is-mini).cactus-hevc-vod #video{display:block!important;position:absolute;top:0;left:0;width:1920px;height:1080px;z-index:5;object-fit:contain;background:#000}'+
         '#screen-player.is-mini.cactus-hevc-vod #player-video{display:block!important;position:absolute;top:0;left:0;width:765px!important;height:430px!important;z-index:5;background:#000;object-fit:contain}'+
         '#screen-player.is-mini #cactus-hevc-hint{display:none!important}'+
         '#player.cactus-hevc-vod #player-ui{display:none!important}'+
@@ -290,6 +317,8 @@
     active=s;
   }
   function dispose(){
+    startSeq++;
+    if(pendingStart){pendingStart.ended=true;if(pendingStart.pending)try{pendingStart.pending.abort();}catch(e){}pendingStart=null;}
     var s=active;if(!s)return;if(w.CactusProgress)w.CactusProgress.suspend();active=null;s.ended=true;
     if(s.stallTimer){clearInterval(s.stallTimer);s.stallTimer=null;}
     if(s.drainTimer){clearTimeout(s.drainTimer);s.drainTimer=null;}
@@ -580,15 +609,26 @@
   function start(player,info,legacyStart){
     if(!player||!player.segments||!player.segments.length) return legacyStart(player,info);
     if(!w.CactusFmp4 || !mediaClass)return legacyStart(player,info);
+    var myStart=++startSeq;
     var s={segments:player.segments,session:player.session,sessionOpts:player.sessionOpts,source:player,legacyStart:legacyStart,subtitles:info&&info.subtitles||player.subtitles||[],pending:null,_renewing:null,phase:'consultando segmento inicial',ended:false};
+    pendingStart=s;
     return request(s,0).then(function(data){
+      if(s.ended||myStart!==startSeq)throw Error('Reproducción cancelada');
+      if(pendingStart===s)pendingStart=null;
       if(!codeType(data))throw Error('El primer fragmento no parece MPEG-TS');
       var parsed;
       try{parsed=w.CactusFmp4.demux(new Uint8Array(data));}
-      catch(e){return legacyStart(player,info);}
+      catch(e){
+        if(s.ended||myStart!==startSeq)throw Error('Reproducción cancelada');
+        return legacyStart(player,info);
+      }
+      if(s.ended||myStart!==startSeq)throw Error('Reproducción cancelada');
       if(!parsed||!parsed.video||!(/^hvc1\./.test(parsed.video.codec)||/^avc1\./.test(parsed.video.codec)))return legacyStart(player,info);
       return beginMse(s,parsed,info);
+    },function(err){
+      if(pendingStart===s)pendingStart=null;
+      throw err;
     });
   }
-  w.CactusHEVC={start:start,stop:dispose,isActive:function(){return !!active&&!active.ended;},segmentAt:segmentAt,version:'1.4.1'};
+  w.CactusHEVC={start:start,stop:dispose,syncDisplayMode:syncDisplayMode,isActive:function(){return !!active&&!active.ended;},segmentAt:segmentAt,version:'1.4.2'};
 })(window,document);

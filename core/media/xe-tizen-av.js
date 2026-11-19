@@ -45,6 +45,7 @@
     panel = panel || el('screen-player') || el('player');
     applyDisplayRect();
     if (!active) return;
+    setTimeout(applyDisplayRect, 50);
     if (isMiniPanel()) {
       hideHUD();
       if (toast) toast.hidden = true;
@@ -745,7 +746,9 @@
               }
               clear();
               try{
+                applyDisplayRect();
                 av.play();playing=true;
+                applyDisplayRect();
                 if(window.__onStreamPlaying)window.__onStreamPlaying();
                 tracks();
                 if(audioTracks&&audioTracks.length>1){

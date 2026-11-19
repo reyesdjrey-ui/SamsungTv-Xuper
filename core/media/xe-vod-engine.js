@@ -4,7 +4,34 @@
   var oldHttp = w.CactusDirect && w.CactusDirect.http;
   if (!oldHttp) return;
   var H = 'https://cactus-media.invalid';
-  var current = null, movieSequence = 0, cachedSeriesColId = 0;
+  var current = null, movieSequence = 0, startSequence = 0, cachedSeriesColId = 0;
+  function isMiniPanel(panel){
+    var det=d.getElementById('screen-detail');
+    if(panel&&panel.classList&&panel.classList.contains('is-mini'))return true;
+    return !!(det&&det.classList&&det.classList.contains('is-active')&&(!panel||!panel.classList.contains('is-active')));
+  }
+  function syncDisplayMode(){
+    var panel=d.getElementById('screen-player')||d.getElementById('player'),video=d.getElementById('player-video')||d.getElementById('video'),stage=d.getElementById('player-stage');
+    if(!panel)return;
+    var mini=isMiniPanel(panel);
+    if(!mini){
+      panel.classList.remove('is-mini');
+      d.documentElement.classList.add('modal-open');
+    }else{
+      panel.classList.add('is-mini');
+      d.documentElement.classList.remove('modal-open');
+    }
+    if(stage)void stage.offsetWidth;
+    if(video){
+      void video.offsetWidth;
+      if(!mini&&current){
+        try{
+          video.style.webkitTransform='translateZ(0)';
+          setTimeout(function(){try{if(video)video.style.webkitTransform='';}catch(_){}},0);
+        }catch(_){}
+      }
+    }
+  }
   var FOUR_MB = 4 * 1024 * 1024;
   function errText(e) { return String(e && (e.message || e.name) || e || 'Error'); }
   function reported(e) { return new Error(errText(e).slice(0,240)); }
@@ -290,6 +317,7 @@
     fetchChunk(0);
   };
   function stop() {
+    startSequence++;
     restoreScreenSaver();
     if(w.CactusHEVC && w.CactusHEVC.stop) w.CactusHEVC.stop();
     if(w.CactusMP4 && w.CactusMP4.stop) w.CactusMP4.stop();
@@ -310,7 +338,7 @@
     var video=d.getElementById('player-video')||d.getElementById('video'),panel=d.getElementById('screen-player')||d.getElementById('player'),title=d.getElementById('vod-infobar-title')||d.getElementById('player-title');
     if(!video||!panel)return Promise.reject(Error('No se encontró el reproductor de Cactus TV.'));
     if(title)title.textContent=info&&info.title||'Cactus TV';
-    var isMini = panel.classList.contains('is-mini') || (typeof ke !== 'undefined' && ke.screen === 'detail');
+    var isMini = isMiniPanel(panel);
     if (!isMini) {
       panel.classList.remove('is-mini');
       d.documentElement.classList.add('modal-open');
@@ -462,17 +490,23 @@
   }
   w.CactusVODBrowser={
     start:function(player,info){
+      var myStart=++startSequence;
       if(player && player.container==='mp4' && w.CactusMP4){
         stop();
         keepScreenOn();
         return w.CactusMP4.start(player,info);
       }
-      return w.CactusHEVC ? w.CactusHEVC.start(player,info,start) : start(player,info);
+      if(!w.CactusHEVC)return start(player,info);
+      return w.CactusHEVC.start(player,info,function(p,i){
+        if(myStart!==startSequence)return Promise.reject(Error('Reproducción cancelada'));
+        return start(p,i);
+      });
     },
     stop:stop,
+    syncDisplayMode:syncDisplayMode,
     isActive:function(){return !!current || (!!w.CactusMP4 && w.CactusMP4.isActive());},
     idxg:inspectIdxg,
-    version:'1.2.4'
+    version:'1.2.5'
   };
   // Replace only play: preserve all other catalog requests, favorites and sessions.
   w.CactusDirect.http=function(method,args){
