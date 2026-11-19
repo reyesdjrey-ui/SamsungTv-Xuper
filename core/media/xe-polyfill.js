@@ -626,63 +626,6 @@
     }
     PngStripLoader.prototype = Object.create(BaseLoader.prototype);
     PngStripLoader.prototype.constructor = PngStripLoader;
-    var seqTracker = { url: '', map: {}, order: [], maxSeq: -1 };
-    function normalizeSeqPlaylistText(txt, plUrl) {
-      var mSeq = /#EXT-X-MEDIA-SEQUENCE:[ \t]*(\d+)/.exec(txt);
-      if (!mSeq || txt.indexOf('#EXTINF') === -1) return txt;
-      var plKey = String(plUrl || '').split('?')[0];
-      if (plKey && seqTracker.url !== plKey) {
-        seqTracker.url = plKey;
-        seqTracker.map = {};
-        seqTracker.order = [];
-        seqTracker.maxSeq = -1;
-      }
-      var lines = txt.split(/\r?\n/);
-      var segs = [];
-      for (var li = 0; li < lines.length; li++) {
-        var ln = String(lines[li] || '').trim();
-        if (ln && ln.charAt(0) !== '#') {
-          var noQ = ln.split('?')[0];
-          var pathIdx = noQ.indexOf('://');
-          if (pathIdx !== -1) {
-            var slIdx = noQ.indexOf('/', pathIdx + 3);
-            noQ = slIdx !== -1 ? noQ.slice(slIdx) : noQ;
-          }
-          segs.push(noQ);
-        }
-      }
-      if (!segs.length) return txt;
-      var rawSeq = Number(mSeq[1]);
-      var nextSeq = rawSeq;
-      var matchedAt = -1;
-      for (var si = 0; si < segs.length; si++) {
-        if (Object.prototype.hasOwnProperty.call(seqTracker.map, segs[si])) {
-          matchedAt = si;
-          break;
-        }
-      }
-      if (matchedAt >= 0) {
-        nextSeq = seqTracker.map[segs[matchedAt]] - matchedAt;
-      } else if (seqTracker.maxSeq >= 0 && nextSeq < seqTracker.maxSeq) {
-        nextSeq = seqTracker.maxSeq;
-      }
-      for (var si2 = 0; si2 < segs.length; si2++) {
-        var sk = segs[si2];
-        if (!Object.prototype.hasOwnProperty.call(seqTracker.map, sk)) {
-          seqTracker.order.push(sk);
-        }
-        seqTracker.map[sk] = nextSeq + si2;
-      }
-      if (nextSeq + segs.length > seqTracker.maxSeq) {
-        seqTracker.maxSeq = nextSeq + segs.length;
-      }
-      while (seqTracker.order.length > 300) {
-        var oldK = seqTracker.order.shift();
-        delete seqTracker.map[oldK];
-      }
-      if (nextSeq === rawSeq) return txt;
-      return txt.replace(mSeq[0], '#EXT-X-MEDIA-SEQUENCE:' + nextSeq);
-    }
     var origLoad = BaseLoader.prototype.load;
     PngStripLoader.prototype.load = function(context, config, callbacks) {
       if (config && config._xeRelayPortal && context && context.url &&
@@ -712,10 +655,22 @@
                          response.data.indexOf('#EXT-X-ENDLIST') === -1 &&
                          (/epictvparaiphone\.top|playlatam\.site|\/perelman\//i.test(String(response.url || (context && (context._xeOrigUrl || context.url)) || '')) ||
                           (_g.__xuperCurrentStreamMeta && _g.__xuperCurrentStreamMeta.headers && (_g.__xuperCurrentStreamMeta.headers['X-Pulsera'] || _g.__xuperCurrentStreamMeta.headers['X-Cookie'])))) {
-                // Evita seek preciso en mitad de segmento al abrir en vivo y estabiliza EXT-X-MEDIA-SEQUENCE
+                // Evita seek preciso en mitad de segmento al abrir en vivo y amplía el colchón HOLD-BACK
                 var m3uTxt = response.data.replace(/#EXT-X-START:[^\r\n]*(\r?\n)?/g, '');
-                var plSrcUrl = String(response.url || (context && (context._xeOrigUrl || context.url)) || '');
-                response.data = normalizeSeqPlaylistText(m3uTxt, plSrcUrl);
+                var tdMatch = /#EXT-X-TARGETDURATION:\s*(\d+)/i.exec(m3uTxt);
+                var targetDur = tdMatch ? (parseInt(tdMatch[1], 10) || 5) : 5;
+                var holdBackSec = Math.max(18, targetDur * 3.5);
+                var hbStr = holdBackSec.toFixed(1);
+                if (m3uTxt.indexOf('#EXT-X-SERVER-CONTROL:') !== -1) {
+                  if (/(^|[,:])HOLD-BACK=[\d.]+/i.test(m3uTxt)) {
+                    m3uTxt = m3uTxt.replace(/(^|[,:])HOLD-BACK=[\d.]+/gi, '$1HOLD-BACK=' + hbStr);
+                  } else {
+                    m3uTxt = m3uTxt.replace(/(#EXT-X-SERVER-CONTROL:[^\r\n]*)/i, '$1,HOLD-BACK=' + hbStr);
+                  }
+                } else {
+                  m3uTxt = m3uTxt.replace(/(#EXTM3U[^\r\n]*)/i, '$1\n#EXT-X-SERVER-CONTROL:HOLD-BACK=' + hbStr);
+                }
+                response.data = m3uTxt;
               }
             }
           } catch (_) {}
