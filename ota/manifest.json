@@ -1,10 +1,10 @@
 {
-  "rev": 12,
-  "version": "3.0.1",
+  "rev": 13,
+  "version": "3.0.2",
   "minBaseRev": 1,
-  "bundle": "bundle-12.json",
-  "sha256": "c6b9ce64b9cc7e9b00e96c84b944d086ab943b5873241e6409a89144c8682190",
-  "sig": "f05a8d80b92a3ff4673127194ea0fc1c",
-  "notes": "v3.0.1: audio multi-pista en series/MP4, canales completos en Todos, MSE single-SourceBuffer y respaldo SEC",
-  "updatedAt": "2026-11-18T17:39:02.719Z"
+  "bundle": "bundle-13.json",
+  "sha256": "bee33178fd6e721dc01d35c5d3f2743f0fae36831fe18fc5c6de8a8e41f8d16a",
+  "sig": "f27d05940d78f6fbb86719f77821e316",
+  "notes": "v3.0.2: failover CDN en vivo (cfl+goog), reintentos 404/409, audio/series estable, geometría mini-preview y fallback SEC",
+  "updatedAt": "2026-11-19T02:53:07.143Z"
 }
