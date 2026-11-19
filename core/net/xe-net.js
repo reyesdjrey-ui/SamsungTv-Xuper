@@ -493,10 +493,15 @@
             });
           }
         }
-        if (!r.SEC && !opts._secRetried && typeof r.activateSecFallback === "function") {
+        var isContentQueryErr = !!(tErr && tErr.portalError && /^(portal100006|portal100081)$/i.test(String(tErr.code || "")));
+        if (!r.SEC && !opts._secRetried && !opts._skipSecFallback && !isContentQueryErr && typeof r.activateSecFallback === "function") {
           console.warn("[xe-net] Ruta sin cookies fallo en " + endpoint + " (" + (tErr && (tErr.code || tErr.message) || "error") + "), cambiando a respaldo SEC...");
           opts._secRetried = true;
           r.activateSecFallback();
+          try {
+            var badgeEl = typeof document !== "undefined" && document.getElementById("xe-ota-debug-badge");
+            if (badgeEl && badgeEl.textContent) badgeEl.textContent = badgeEl.textContent.replace(/LEGACY$/, "SEC");
+          } catch (_) {}
           self.hosts = r.PORTAL_HOSTS.slice();
           self.host = self.hosts[0];
           self.headers = Object.assign({}, r.HEADERS);
