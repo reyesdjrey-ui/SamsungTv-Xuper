@@ -1,0 +1,10 @@
+{
+  "rev": 17,
+  "version": "3.0.5-t3exp",
+  "minBaseRev": 1,
+  "bundle": "bundle-17.json",
+  "sha256": "97f7b84d9365494f69de65aa26d219936c2d8a268d191d318497812bdc04a7e1",
+  "sig": "e0cf594322d29e35e4d9b2398848d63d",
+  "notes": "Prueba OTA Tizen 3.0 salto directo (rev 15 -> 17)",
+  "updatedAt": "2026-11-19T23:43:14.543Z"
+}
