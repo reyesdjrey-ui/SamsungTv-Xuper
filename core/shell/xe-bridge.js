@@ -374,7 +374,7 @@
     var out = [
       { id: 76182, name: 'Todos' },
       { id: 'favorites', name: '⭐ Favoritos', isFavorite: true },
-      { id: 'epic_events', name: '🔴 Eventos En Vivo', isEpicEvents: true },
+      { id: 'epic_events', name: 'Deportes En Vivo', isEpicEvents: true },
       { id: 'espn', name: 'ESPN', isEspn: true },
       { id: 76206, name: 'Deportes', code: deportesCode }
     ];
@@ -874,15 +874,32 @@
       return 'https://epictvparaiphone.top/perelman/' + relSlug + '.m3u8';
     }
 
+    var EXTRA_PERELMAN_SPORTS = [
+      { channelCode: 'epic-dsportsplus', index: 928, name: 'DSports+', logo: 'https://epictvparaiphone.top/logos/canales/dsports_plus_color.png?v=18', uhd: false, fav: false, now: 'En vivo', next: '', time: 'EN VIVO', url: 'https://epictvparaiphone.top/perelman/dsportsplus.m3u8', streamUrl: 'https://epictvparaiphone.top/perelman/dsportsplus.m3u8', isEpic: true, liveAddressList: [] },
+      { channelCode: 'epic-winsports', index: 929, name: 'Win Sports', logo: 'https://epictvparaiphone.top/logos/canales/win_sports_color.png?v=18', uhd: false, fav: false, now: 'En vivo', next: '', time: 'EN VIVO', url: 'https://epictvparaiphone.top/perelman/winsports.m3u8', streamUrl: 'https://epictvparaiphone.top/perelman/winsports.m3u8', isEpic: true, liveAddressList: [] },
+      { channelCode: 'epic-vixdeportes', index: 930, name: 'ViX Deportes 24/7', logo: 'https://epictvparaiphone.top/logos/canales/vix_deportes_color.png?v=18', uhd: false, fav: false, now: 'En vivo', next: '', time: 'EN VIVO', url: 'https://epictvparaiphone.top/perelman/vixdeportes.m3u8', streamUrl: 'https://epictvparaiphone.top/perelman/vixdeportes.m3u8', isEpic: true, liveAddressList: [] }
+    ];
+
+    function getEpicSlugFromUrl(u, fallback) {
+      var s = String(u || '').split('?')[0];
+      var last = s ? s.substring(s.lastIndexOf('/') + 1).replace(/\.m3u8$/i, '') : '';
+      return String(last || fallback || '').replace(/^pere-|^epic-/, '').toLowerCase();
+    }
+
     function mergeEpicChannels(dynamicList) {
-      var stat = (w.__EPIC_SPORTS_CHANNELS && w.__EPIC_SPORTS_CHANNELS.slice()) || [];
+      var stat = ((w.__EPIC_SPORTS_CHANNELS && w.__EPIC_SPORTS_CHANNELS.slice()) || []).concat(EXTRA_PERELMAN_SPORTS);
       var statByCode = {};
       var i, item;
       for (i = 0; i < stat.length; i++) {
-        if (stat[i] && stat[i].channelCode) statByCode[stat[i].channelCode] = stat[i];
+        if (stat[i] && stat[i].channelCode) {
+          statByCode[stat[i].channelCode] = stat[i];
+          var stSlug = getEpicSlugFromUrl(stat[i].url || stat[i].streamUrl, stat[i].channelCode);
+          if (stSlug && !statByCode['slug:' + stSlug]) statByCode['slug:' + stSlug] = stat[i];
+        }
       }
       var merged = [];
       var seen = {};
+      var seenSlug = {};
       if (Array.isArray(dynamicList)) {
         for (i = 0; i < dynamicList.length; i++) {
           item = dynamicList[i];
@@ -890,18 +907,21 @@
           var cleanId = String(item.id || item.code || ('dyn-' + i)).replace(/^pere-/, '');
           var code = cleanId.indexOf('epic-') === 0 ? cleanId : ('epic-' + cleanId);
           var url = normalizeEpicChannelUrl(item.url, cleanId);
-          if (!url || seen[code]) continue;
+          var uSlug = getEpicSlugFromUrl(url, cleanId);
+          if (!url || seen[code] || (uSlug && seenSlug[uSlug])) continue;
           seen[code] = true;
+          if (uSlug) seenSlug[uSlug] = true;
+          var statMatch = statByCode[code] || (uSlug && statByCode['slug:' + uSlug]) || null;
           var rawLogo = String(item.logo || '').trim();
           var logo = rawLogo
-            ? (rawLogo.indexOf('http') === 0 ? rawLogo : ('https://playlatam.site' + (rawLogo.charAt(0) === '/' ? '' : '/') + rawLogo))
-            : ((statByCode[code] && statByCode[code].logo) || '');
+            ? (rawLogo.indexOf('http') === 0 ? rawLogo : ('https://epictvparaiphone.top' + (rawLogo.charAt(0) === '/' ? '' : '/') + rawLogo))
+            : ((statMatch && statMatch.logo) || '');
           var backupList = [];
           if (item.url && String(item.url).indexOf('http') === 0) {
             var altUrl = /\.m3u8($|\?)/i.test(String(item.url)) ? String(item.url) : (String(item.url) + '.m3u8');
             if (altUrl !== url) backupList.push(altUrl);
           }
-          var chName = String(item.nombre || item.name || item.title || (statByCode[code] && statByCode[code].name) || cleanId);
+          var chName = String(item.nombre || item.name || item.title || (statMatch && statMatch.name) || cleanId);
           merged.push({
             channelCode: code,
             index: 901 + i,
@@ -924,8 +944,10 @@
         item = stat[i];
         if (!item) continue;
         var sc = String(item.channelCode || item.name);
-        if (!seen[sc]) {
+        var sSlug = getEpicSlugFromUrl(item.url || item.streamUrl, sc);
+        if (!seen[sc] && (!sSlug || !seenSlug[sSlug])) {
           seen[sc] = true;
+          if (sSlug) seenSlug[sSlug] = true;
           merged.push(item);
         }
       }
@@ -2060,96 +2082,84 @@
       if (w.__xeEpicMenuCache && (Date.now() - (w.__xeEpicMenuCacheTs || 0)) < MENU_TTL_MS && w.__xeEpicMenuCache.length) {
         return Promise.resolve(w.__xeEpicMenuCache);
       }
-      return fetchEpicTokenFresh().then(function (tok) {
-        var tz = 'America/Mexico_City';
-        try {
-          var sysTz = typeof Intl !== 'undefined' && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone;
-          if (sysTz && /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)*$/.test(sysTz)) tz = sysTz;
-        } catch (_) {}
-        var menuUrl = 'https://playlatam.site/menu?all=1&recetas=aparte&agenda=propia&v=9999&tz=' + encodeURIComponent(tz) + '&idioma=es';
-        var menuHdrs = { 'Accept': 'application/json', 'X-Cred': PORTAL_CRED };
-        if (tok) menuHdrs['X-Pulsera'] = tok;
-        var menuPromise = isPortalCredExpired()
-          ? Promise.resolve({ events: [] })
-          : epicFetch(menuUrl, 'GET', menuHdrs, 7500).catch(function () { return { events: [] }; });
-        return Promise.all([
-          fetchEpicSportsChannels().catch(function () { return mergeEpicChannels(null); }),
-          menuPromise,
-          fetchHelloHowLiveEvents().catch(function () { return []; }),
-          fetchStreamTpChannels().catch(function () { return []; }),
-          fetchKsdChannels().catch(function () { return []; }),
-          fetchPirloTvChannels().catch(function () { return []; }),
-          fetchPortalCanales().catch(function () { return []; })
-        ]).then(function (results) {
-          var pereList = Array.isArray(results[0]) ? results[0] : [];
-          var payload = results[1] || { events: [] };
-          var hhList = Array.isArray(results[2]) ? results[2] : [];
-          var stpList = Array.isArray(results[3]) ? results[3] : [];
-          var ksdList = (Array.isArray(results[4]) ? results[4] : []).filter(function (x) { return x && x.isSports; });
-          var pirloList = Array.isArray(results[5]) ? results[5] : [];
-          var portalEvList = (Array.isArray(results[6]) ? results[6] : []).filter(function (x) { return x && x.categoria === 'epic_events'; });
+      return fetchRawEpicPerelmanChannels().catch(function () {
+        return mergeEpicChannels(null);
+      }).then(function (pereList) {
+        var t3LogoSkip = isTizen3Device();
+        var orderMap = {
+          dsportsperu: 1, dsports: 1,
+          dsports2: 2,
+          dsportsplus: 3,
+          winsports: 4,
+          winsportsplus: 5,
+          l1max: 6,
+          l1: 7,
+          zappingsports: 8,
+          zappingsportsplus: 9,
+          dtvcplus: 10,
+          entelgol: 11,
+          entelgolplus: 12,
+          futbolcanal: 13,
+          vixdeportes: 14,
+          bicolorplus: 15,
+          bicolorpremium: 16,
+          bicolorpremium2: 17
+        };
+        var nonSportsRe = /^(unitel|unitelscz|reduno|bolivision|atb|boliviatv|teleamazonas|antena3|cuatro|la1|lasexta|telecinco|americatv)$/i;
+        var sportsKeywordRe = /dsports|win\s*sports|winsports|zapping\s*sports|deportes|sport|futbol|f[uú]tbol|bicolor|entel\s*gol|l1max|\bl1\b|dtvc|vix\s*deportes|tyc|tnt\s*sports|fox\s*sports|tudn|goltv|dazn/i;
+        var seenSlugs = {};
+        var sportsItems = [];
 
-          var list = buildEpicMenuChannels(payload);
-          var t3LogoSkip = isTizen3Device();
-          var famItemMap = {};
-          var existingNames = {};
-          for (var i = 0; i < list.length; i++) {
-            var it = list[i];
-            existingNames[String(it.name || '').trim().toLowerCase()] = true;
-            var fk = normalizeMenuFamilyKey(it.name);
-            if (fk && !famItemMap[fk]) famItemMap[fk] = it;
-          }
+        for (var i = 0; i < (pereList || []).length; i++) {
+          var pc = pereList[i];
+          if (!pc) continue;
+          var url = String(pc.url || pc.streamUrl || '').trim();
+          var slug = getEpicSlugFromUrl(url, pc.channelCode || pc.name);
+          var chName = String(pc.name || '').trim();
+          if (!url || !slug || seenSlugs[slug]) continue;
+          if (/^espn/i.test(slug) || /\bespn\b/i.test(chName)) continue;
+          if (nonSportsRe.test(slug)) continue;
+          if (!orderMap[slug] && !sportsKeywordRe.test(chName + ' ' + slug)) continue;
+          seenSlugs[slug] = true;
 
-          var extraBuckets = {};
-          var extraOrder = [];
-          var extraSources = [
-            pereList.map(function (pc) {
-              return { name: pc.name, url: pc.url, logo: pc.logo, fuente: 'perelman', active: true, isSports: true, now: 'Señal directa 24/7', next: 'Deportes LATAM' };
-            }),
-            portalEvList,
-            pirloList,
-            stpList,
-            ksdList
-          ];
-          for (var si = 0; si < extraSources.length; si++) {
-            var srcArr = extraSources[si];
-            var remain = [];
-            for (var ri = 0; ri < srcArr.length; ri++) {
-              var row = srcArr[ri];
-              if (!row || !row.url || !row.name) continue;
-              var rfam = normalizeMenuFamilyKey(row.name);
-              var targetEv = famItemMap[rfam];
-              if (targetEv) {
-                if (targetEv.url !== row.url && targetEv.backupUrls.indexOf(row.url) === -1 && targetEv.backupUrls.length < 12) {
-                  targetEv.backupUrls.push(row.url);
-                }
-                continue;
-              } else if (si === 1) {
-                remain.push(row);
-              }
-            }
-            if (remain.length) appendCatalogRowsToBucket(remain, extraBuckets, extraOrder, existingNames, t3LogoSkip);
-          }
+          var code = 'epicm-dep-' + slug;
+          var backups = Array.isArray(pc.backupUrls) ? pc.backupUrls.slice() : [];
+          var masterMatch = findMatchingMasterChannel(chName);
+          var chObj = {
+            channelCode: code,
+            index: sportsItems.length + 1,
+            name: chName,
+            logo: t3LogoSkip ? '' : (pc.logo || ''),
+            uhd: /fhd|uhd|4k|plus|max/i.test(chName),
+            fav: false,
+            now: 'En vivo',
+            next: 'Deportes En Vivo',
+            time: 'EN VIVO',
+            url: url,
+            streamUrl: url,
+            backupUrls: backups,
+            masterFallbackCode: masterMatch ? masterMatch.channelCode : '',
+            isEpicMenu: true,
+            isSports: true,
+            sortOrder: orderMap[slug] || 100,
+            liveAddressList: []
+          };
+          epicMenuByCode[code] = chObj;
+          sportsItems.push(chObj);
+        }
 
-          var extraItems = finalizeBucketItems(extraBuckets, extraOrder, 'epicm-s247-', list.length);
-          for (var ei = 0; ei < extraItems.length; ei++) list.push(extraItems[ei]);
-          for (var hi = 0; hi < hhList.length; hi++) list.push(hhList[hi]);
-
-          list.sort(function (a, b) {
-            var aOk = a.bestRank <= 1 ? 0 : 1;
-            var bOk = b.bestRank <= 1 ? 0 : 1;
-            if (aOk !== bOk) return aOk - bOk;
-            if (a.isLiveEv !== b.isLiveEv) return a.isLiveEv ? -1 : 1;
-            if (a.bestRank !== b.bestRank) return a.bestRank - b.bestRank;
-            return a.index - b.index;
-          });
-          for (var fi = 0; fi < list.length; fi++) list[fi].index = fi + 1;
-          if (list.length) {
-            w.__xeEpicMenuCache = list;
-            w.__xeEpicMenuCacheTs = Date.now();
-          }
-          return list;
+        sportsItems.sort(function (a, b) {
+          if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+          return String(a.name || '').localeCompare(String(b.name || ''));
         });
+        for (var fi = 0; fi < sportsItems.length; fi++) {
+          sportsItems[fi].index = fi + 1;
+        }
+        if (sportsItems.length) {
+          w.__xeEpicMenuCache = sportsItems;
+          w.__xeEpicMenuCacheTs = Date.now();
+        }
+        return sportsItems;
       });
     }
 
@@ -2708,7 +2718,7 @@
         pushUnique(w.__masterChannelPool, 'Principal');
         pushUnique(groups[0], 'ESPN');
         pushUnique(groups[1], 'Deportes-S1');
-        pushUnique(groups[2], 'Todos-S2');
+        pushUnique(groups[2], 'Deportes En Vivo');
         pushUnique(groups[3], 'Canales 24/7-S1');
         pushUnique(groups[4], 'Portal');
         callback(null, { returnValue: true, channels: combined });
@@ -3014,7 +3024,7 @@
                 var avOk = false;
                 w.CactusAVPlay.start({
                   url: rUrl,
-                  title: params.name || 'Todos-S2',
+                  title: params.name || 'Deportes En Vivo',
                   kind: 'live',
                   suppressStreamError: true,
                   headers: Object.keys(rHdrs).length ? rHdrs : undefined,
