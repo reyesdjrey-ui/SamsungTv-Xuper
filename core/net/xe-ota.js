@@ -4,14 +4,16 @@
 
   var BASE_REV = 12;
   var BASE_VERSION = "3.0.1";
-  var OTA_BASE_URL = "https://reyesdjrey-ui.github.io/SamsungTv-Xuper/ota/";
+  var OTA_BASE_URL = "https://reyesdjrey-ui.github.io/SamsungTv-Xuper/ota/tizen3/";
   var MANIFEST_URL = OTA_BASE_URL + "manifest.json";
   var OTA_SALT = "EcLex_0TA_Sh13ld_#2026_S4msungTv_Xup3r";
   var DB_NAME = "xuper_ota_v1";
   var STORE_NAME = "bundles";
   var BOOT_KEY = "xuper.ota.boot_state";
-  var MANIFEST_TIMEOUT_MS = 2200;
-  var BUNDLE_TIMEOUT_MS = 5500;
+  var MANIFEST_TIMEOUT_MS = 3500;
+  var BUNDLE_TIMEOUT_MS = 12000;
+  var IDB_TIMEOUT_MS = 2200;
+  var BOOT_MAX_WAIT_MS = 5500;
 
   var MODULES = [
     "core/net/xe-env.js",
@@ -71,6 +73,21 @@
   function openDb(cb) {
     var idb = w.indexedDB || w.webkitIndexedDB;
     if (!idb) return cb(null);
+    var done = false;
+    var tm = setTimeout(function () {
+      if (done) return;
+      done = true;
+      cb(null);
+    }, IDB_TIMEOUT_MS);
+    function finish(db) {
+      if (done) {
+        if (db) { try { db.close(); } catch (_) {} }
+        return;
+      }
+      done = true;
+      clearTimeout(tm);
+      cb(db);
+    }
     try {
       var req = idb.open(DB_NAME, 1);
       req.onupgradeneeded = function (ev) {
@@ -79,51 +96,65 @@
           db.createObjectStore(STORE_NAME);
         }
       };
-      req.onsuccess = function (ev) { cb(ev.target.result); };
-      req.onerror = function () { cb(null); };
+      req.onsuccess = function (ev) { finish(ev.target.result); };
+      req.onerror = function () { finish(null); };
     } catch (_) {
-      cb(null);
+      finish(null);
     }
   }
 
   function idbGetActive(cb) {
     openDb(function (db) {
       if (!db) return cb(null);
+      var done = false;
+      var tm = setTimeout(function () {
+        if (done) return;
+        done = true;
+        try { db.close(); } catch (_) {}
+        cb(null);
+      }, IDB_TIMEOUT_MS);
+      function finish(val) {
+        if (done) return;
+        done = true;
+        clearTimeout(tm);
+        try { db.close(); } catch (_) {}
+        cb(val);
+      }
       try {
         var tx = db.transaction([STORE_NAME], "readonly");
         var req = tx.objectStore(STORE_NAME).get("active");
-        req.onsuccess = function () {
-          try { db.close(); } catch (_) {}
-          cb(req.result || null);
-        };
-        req.onerror = function () {
-          try { db.close(); } catch (_) {}
-          cb(null);
-        };
+        req.onsuccess = function () { finish(req.result || null); };
+        req.onerror = function () { finish(null); };
       } catch (_) {
-        try { db.close(); } catch (_) {}
-        cb(null);
+        finish(null);
       }
     });
   }
 
   function idbPutActive(bundleObj, cb) {
     openDb(function (db) {
-      if (!db) return cb(false);
+      if (!db) return cb && cb(false);
+      var done = false;
+      var tm = setTimeout(function () {
+        if (done) return;
+        done = true;
+        try { db.close(); } catch (_) {}
+        if (cb) cb(false);
+      }, IDB_TIMEOUT_MS);
+      function finish(ok) {
+        if (done) return;
+        done = true;
+        clearTimeout(tm);
+        try { db.close(); } catch (_) {}
+        if (cb) cb(ok);
+      }
       try {
         var tx = db.transaction([STORE_NAME], "readwrite");
         var req = tx.objectStore(STORE_NAME).put(bundleObj, "active");
-        tx.oncomplete = function () {
-          try { db.close(); } catch (_) {}
-          cb(true);
-        };
-        tx.onerror = req.onerror = function () {
-          try { db.close(); } catch (_) {}
-          cb(false);
-        };
+        tx.oncomplete = function () { finish(true); };
+        tx.onerror = req.onerror = function () { finish(false); };
       } catch (_) {
-        try { db.close(); } catch (_) {}
-        cb(false);
+        finish(false);
       }
     });
   }
@@ -131,14 +162,27 @@
   function idbClearActive(cb) {
     openDb(function (db) {
       if (!db) return cb && cb();
+      var done = false;
+      var tm = setTimeout(function () {
+        if (done) return;
+        done = true;
+        try { db.close(); } catch (_) {}
+        if (cb) cb();
+      }, IDB_TIMEOUT_MS);
+      function finish() {
+        if (done) return;
+        done = true;
+        clearTimeout(tm);
+        try { db.close(); } catch (_) {}
+        if (cb) cb();
+      }
       try {
         var tx = db.transaction([STORE_NAME], "readwrite");
         tx.objectStore(STORE_NAME).delete("active");
-        tx.oncomplete = function () { try { db.close(); } catch (_) {} if (cb) cb(); };
-        tx.onerror = function () { try { db.close(); } catch (_) {} if (cb) cb(); };
+        tx.oncomplete = finish;
+        tx.onerror = finish;
       } catch (_) {
-        try { db.close(); } catch (_) {}
-        if (cb) cb();
+        finish();
       }
     });
   }
@@ -330,6 +374,21 @@
   }
 
   function boot() {
+    var booted = false;
+    var cachedRef = null;
+    function bootOnce(bundle) {
+      if (booted) return;
+      booted = true;
+      if (bootTimer) {
+        clearTimeout(bootTimer);
+        bootTimer = null;
+      }
+      loadScriptsSequential(bundle);
+    }
+    var bootTimer = setTimeout(function () {
+      bootOnce(cachedRef);
+    }, BOOT_MAX_WAIT_MS);
+
     idbGetActive(function (cached) {
       var st = readBootState();
       if (cached && Number(cached.rev || 0) <= BASE_REV) {
@@ -346,34 +405,40 @@
         writeBootState({ rev: BASE_REV, fails: 0 });
       }
 
+      cachedRef = cached;
       var curRev = cached ? Number(cached.rev) : BASE_REV;
       var mUrl = MANIFEST_URL + "?t=" + Math.floor(Date.now() / 300000);
 
       xhrText(mUrl, MANIFEST_TIMEOUT_MS, function (err, txt) {
         if (err || !txt) {
-          loadScriptsSequential(cached);
+          bootOnce(cached);
           return;
         }
         var manifest = null;
         try { manifest = JSON.parse(txt); } catch (_) { manifest = null; }
         if (verifySignature(manifest) && Number(manifest.minBaseRev || 1) > BASE_REV) {
           showWgtUpdateBanner(manifest);
-          loadScriptsSequential(cached);
+          bootOnce(cached);
           return;
         }
         if (!verifyManifest(manifest) || Number(manifest.rev) <= curRev) {
-          loadScriptsSequential(cached);
+          bootOnce(cached);
           return;
         }
-        console.log("[xe-ota] Descargando actualizacion rev=" + manifest.rev + " (" + manifest.version + ")...");
+        console.log("[xe-ota] Descargando actualizacion Tizen3 rev=" + manifest.rev + " (" + manifest.version + ")...");
         fetchBundle(manifest, function (freshBundle) {
           if (!freshBundle) {
-            loadScriptsSequential(cached);
+            bootOnce(cached);
             return;
           }
-          idbPutActive(freshBundle, function () {
-            loadScriptsSequential(freshBundle);
-          });
+          if (!booted) {
+            bootOnce(freshBundle);
+            setTimeout(function () {
+              idbPutActive(freshBundle, function () {});
+            }, 1500);
+          } else {
+            idbPutActive(freshBundle, function () {});
+          }
         });
       });
     });
