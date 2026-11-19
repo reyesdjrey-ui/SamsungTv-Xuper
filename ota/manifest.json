@@ -1,10 +1,10 @@
 {
-  "rev": 13,
-  "version": "3.0.2",
+  "rev": 14,
+  "version": "3.0.3",
   "minBaseRev": 1,
-  "bundle": "bundle-13.json",
-  "sha256": "bee33178fd6e721dc01d35c5d3f2743f0fae36831fe18fc5c6de8a8e41f8d16a",
-  "sig": "f27d05940d78f6fbb86719f77821e316",
-  "notes": "v3.0.2: failover CDN en vivo (cfl+goog), reintentos 404/409, audio/series estable, geometría mini-preview y fallback SEC",
-  "updatedAt": "2026-11-19T02:53:07.143Z"
+  "bundle": "bundle-14.json",
+  "sha256": "93132cf632f2a72485ffc65eac2c2bbce371ab3a64e441573bb3cb95fe4f6ff4",
+  "sig": "26a573dcfe00a9c382895496ade873c3",
+  "notes": "v3.0.3: canales ESPN renovados (1-7, Premium, The Ocho, U HD) y nueva categoría Deportes En Vivo con 17 canales deportivos",
+  "updatedAt": "2026-11-19T22:25:27.507Z"
 }
