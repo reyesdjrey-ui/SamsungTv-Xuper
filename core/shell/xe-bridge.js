@@ -2855,7 +2855,7 @@
               if (!resp || !resp.ok) throw new Error('HTTP ' + (resp ? resp.status : 0));
               return resp.text().then(function (txt) {
                 if (!/#EXTM3U/i.test(txt || '')) throw new Error('Manifiesto no válido');
-                if (!isTizen3Device() && !useRelay && !/#EXT-X-STREAM-INF/i.test(txt)) {
+                if ((!isTizen3Device() || /^http:\/\//i.test(targetU)) && !useRelay && !/#EXT-X-STREAM-INF/i.test(txt)) {
                   var pLines = String(txt || '').split(/\r?\n/);
                   var segLines = [];
                   for (var li = 0; li < pLines.length; li++) {
@@ -2913,7 +2913,16 @@
           var allowBypassIfBrowserBlocked = function (err) {
             var msg = String(err && err.message || '');
             if (/HTTP\s+(404|410|451|5\d\d)|Manifiesto no v/i.test(msg)) throw err;
-            if (isTizen3Device()) return { url: checkUrl };
+            if (isTizen3Device()) {
+              var t3HasMasterFallback = !!(
+                (menuEntry && menuEntry.masterFallbackCode && channelCache[menuEntry.masterFallbackCode]) ||
+                findMatchingMasterChannel(params.name || (menuEntry && menuEntry.name) || '')
+              );
+              if (/^https:\/\//i.test(String(checkUrl || '')) && !t3HasMasterFallback) {
+                return { url: checkUrl };
+              }
+              throw err;
+            }
             if (canDirectAvFallback && ((/HTTP\s+403/i.test(msg) && hasCustomHdrs) || /^https?:\/\//i.test(checkUrl) || !/HTTP\s+\d+/i.test(msg))) {
               return { url: checkUrl };
             }
@@ -4235,12 +4244,11 @@
   try {
     setTimeout(function () {
       try {
-        var ver = w.__XE_APP_VERSION || (w.XuperOTA && w.XuperOTA.BASE_VERSION) || '3.0.1';
-        if (!/-exp|t3exp/i.test(ver)) return;
+        var ver = (w.XuperOTA && w.XuperOTA.BASE_VERSION) || '3.0.1';
+        if (!/-exp/i.test(ver)) return;
         var stRaw = w.localStorage && w.localStorage.getItem('xuper.ota.boot_state');
         var rev = 0;
         if (stRaw) { try { rev = JSON.parse(stRaw).rev || 0; } catch (_) {} }
-        if (!rev && w.__XE_OTA_REV) rev = w.__XE_OTA_REV;
         var mode = (w.XuperConfig && w.XuperConfig.isSecActive && w.XuperConfig.isSecActive()) ? 'SEC' : 'LEGACY';
         var el = d.getElementById('xe-ota-debug-badge');
         if (!el && d.body) {
@@ -4250,17 +4258,6 @@
           d.body.appendChild(el);
         }
         if (el) el.textContent = 'v' + ver + ' · ota' + rev + ' · ' + mode;
-        var baseRev = (w.XuperOTA && Number(w.XuperOTA.BASE_REV || 0)) || 0;
-        if (d.body && rev > baseRev && !d.getElementById('xe-t3-ota-toast')) {
-          var toast = d.createElement('div');
-          toast.id = 'xe-t3-ota-toast';
-          toast.style.cssText = 'position:fixed;top:24px;right:28px;z-index:99999;background:rgba(6,78,59,0.94);color:#ecfdf5;border:1px solid #34d399;border-radius:10px;padding:12px 18px;font:600 18px/1.3 sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.45);pointer-events:none;';
-          toast.textContent = 'OTA Tizen 3.0 aplicada: v' + ver + ' (rev ' + rev + ')';
-          d.body.appendChild(toast);
-          setTimeout(function () {
-            try { if (toast.parentNode) toast.parentNode.removeChild(toast); } catch (_) {}
-          }, 7000);
-        }
       } catch (_) {}
     }, 2500);
   } catch (_) {}

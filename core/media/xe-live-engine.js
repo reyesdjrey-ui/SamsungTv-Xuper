@@ -1369,7 +1369,7 @@
             return liveMSEStart(s,finalBytes,finalSeq,result,false);
           }
           var cfg = w.XuperEngineConfig || {};
-          if((w.__xeLivePreferMuxed || cfg.isEmulator) && result && result.video && result.audio && result.audio.length && MS){
+          if((w.__xeLivePreferMuxed || cfg.isEmulator || cfg.disableDualSourceBuffer || cfg.tier === 'legacy') && result && result.video && result.audio && result.audio.length && MS){
             var muxMime = 'video/mp4; codecs="' + result.video.codec + ',' + result.audio[0].codec + '"';
             if(MS.isTypeSupported(muxMime)){
               console.log('[LiveTV] Using single muxed SourceBuffer:', muxMime);

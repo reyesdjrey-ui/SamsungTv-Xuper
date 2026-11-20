@@ -735,7 +735,7 @@
             if(typeof av.setDisplayMethod==='function')av.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
             applyDisplayRect();
             var isTizen3Av = typeof navigator !== 'undefined' && /Tizen\s*3\.|AppleWebKit\/538/i.test(navigator.userAgent || '');
-            timeout=setTimeout(function(){fail('El video no respondio a tiempo');},isLive?(isTizen3Av?10000:20000):25000);
+            timeout=setTimeout(function(){fail('El video no respondio a tiempo');},isLive?(isTizen3Av?15000:20000):25000);
             preparingSession=my;
             av.prepareAsync(function(){
               if(preparingSession===my)preparingSession=0;
