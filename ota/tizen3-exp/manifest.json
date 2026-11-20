@@ -1,10 +1,10 @@
 {
-  "rev": 17,
-  "version": "3.0.5-t3exp",
+  "rev": 18,
+  "version": "3.0.6-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-17.json",
-  "sha256": "97f7b84d9365494f69de65aa26d219936c2d8a268d191d318497812bdc04a7e1",
-  "sig": "e0cf594322d29e35e4d9b2398848d63d",
-  "notes": "Prueba OTA Tizen 3.0 salto directo (rev 15 -> 17)",
-  "updatedAt": "2026-11-19T23:43:14.543Z"
+  "bundle": "bundle-18.json",
+  "sha256": "d03f246e302e9e8f407fcc4008a7761016b2ba80bf860a384fea8b63f762bc97",
+  "sig": "44abd837c2c5ff65d1f61a0e4c865859",
+  "notes": "v3.0.6-t3exp (Tizen 3.0 Exp): fixes anti-congelamiento, IDB write seguro y respaldo HTTP/MSE",
+  "updatedAt": "2026-11-20T01:22:23.226Z"
 }
