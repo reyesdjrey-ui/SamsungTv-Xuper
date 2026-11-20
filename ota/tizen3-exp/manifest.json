@@ -1,10 +1,10 @@
 {
-  "rev": 22,
-  "version": "3.0.9-t3exp",
+  "rev": 23,
+  "version": "3.0.10-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-22.json",
-  "sha256": "a5c1860bae52e5b0406be2eb3e6ece967fb82dc28e02664fdf975799b25e625c",
-  "sig": "8f214c52b57d989d47f18fbf5cafee51",
-  "notes": "v3.0.9-t3exp: increase Tizen 2.3/2.4/3.0 catalog/live timeouts & silence AVPlay empty subtitle error",
-  "updatedAt": "2026-11-20T23:49:24.654Z"
+  "bundle": "bundle-23.json",
+  "sha256": "0887701018e028c81b6e0718935a4907cbbe69221dbb9f666a6f41c8c65424af",
+  "sig": "b88a5cc5ee47f7718c2117a0aa730b8e",
+  "notes": "v3.0.10-t3exp: legacy UI/CSS perf, smaller channel batches & direct SEC boot",
+  "updatedAt": "2026-11-20T23:58:29.787Z"
 }
