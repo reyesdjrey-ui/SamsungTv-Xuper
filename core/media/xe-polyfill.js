@@ -514,7 +514,9 @@
             opts.signal.addEventListener('abort', function() {
               aborted = true;
               try { xhr.abort(); } catch (_) {}
-              reject(new Error('Aborted'));
+              var abErr = new Error('Aborted');
+              abErr.name = 'AbortError';
+              reject(abErr);
             });
           }
 
@@ -689,10 +691,16 @@
     if (!st) return;
     st.stopped = true;
     if (st.timer) try { clearTimeout(st.timer); } catch (_) {}
+    if (st.playRetryTimer) try { clearInterval(st.playRetryTimer); } catch (_) {}
     if (st.abort) try { st.abort.abort(); } catch (_) {}
     if (st.video) {
       try {
         if (st.onPlaying) st.video.removeEventListener('playing', st.onPlaying);
+        if (st.onTimeUpdate) st.video.removeEventListener('timeupdate', st.onTimeUpdate);
+        if (st.onCanPlay) {
+          st.video.removeEventListener('canplay', st.onCanPlay);
+          st.video.removeEventListener('loadeddata', st.onCanPlay);
+        }
         if (st.onErr) st.video.removeEventListener('error', st.onErr);
         st.video.pause();
         st.video.removeAttribute('src');
@@ -728,33 +736,46 @@
       return m[1] + (m[2] || '/').replace(/\/[^\/]*$/, '/') + ref;
     }
 
-    function req(url, asBin) {
+    function req(url, asBin, overrideHdrs) {
       var reqH = {};
       var uStr = String(url || '');
+      var useHdrs = overrideHdrs || hdrs;
       var rBase = (_g.XuperRelay && typeof _g.XuperRelay.relayBase === 'function') ? _g.XuperRelay.relayBase() : '';
       var isRelayTarget = /workers\.dev/i.test(uStr) || (rBase && uStr.indexOf(rBase) === 0);
-      if (hdrs) {
-        if (isRelayTarget) {
-          for (var hk in hdrs) {
-            if (Object.prototype.hasOwnProperty.call(hdrs, hk) && hdrs[hk]) {
-              reqH[hk] = hdrs[hk];
+      if (isRelayTarget) {
+        if (useHdrs) {
+          for (var hk in useHdrs) {
+            if (Object.prototype.hasOwnProperty.call(useHdrs, hk) && useHdrs[hk]) {
+              reqH[hk] = useHdrs[hk];
             }
           }
-          if (hdrs['X-Pulsera'] && !reqH['X-Cookie']) {
-            reqH['X-Cookie'] = '__Host-pulsera=' + hdrs['X-Pulsera'];
+          if (useHdrs['X-Pulsera'] && useHdrs['X-Pulsera'] !== '1' && !reqH['X-Cookie']) {
+            reqH['X-Cookie'] = '__Host-pulsera=' + useHdrs['X-Pulsera'];
           }
-        } else if (/epictvparaiphone\.top|playlatam\.site/i.test(uStr)) {
-          if (hdrs['X-Cred']) reqH['X-Cred'] = hdrs['X-Cred'];
-          if (hdrs['X-Pulsera']) reqH['X-Pulsera'] = hdrs['X-Pulsera'];
         }
+        if (uStr.indexOf('/stream?') !== -1 && _g.XuperRelay && typeof _g.XuperRelay.buildSigHeadersForUrl === 'function') {
+          var mSu = /[?&]url=([^&]+)/i.exec(uStr);
+          if (mSu) {
+            var sHdrs = _g.XuperRelay.buildSigHeadersForUrl(decodeURIComponent(mSu[1]));
+            if (sHdrs) {
+              reqH['X-Eclex-Time'] = sHdrs['X-Eclex-Time'];
+              reqH['X-Eclex-Duid'] = sHdrs['X-Eclex-Duid'];
+              reqH['X-Eclex-Sig'] = sHdrs['X-Eclex-Sig'];
+            }
+          }
+        }
+      } else if (useHdrs && /epictvparaiphone\.top|playlatam\.site/i.test(uStr)) {
+        if (useHdrs['X-Cred']) reqH['X-Cred'] = useHdrs['X-Cred'];
+        if (useHdrs['X-Pulsera']) reqH['X-Pulsera'] = useHdrs['X-Pulsera'];
       }
-      return fetch(url, {
+      var fetchOpts = {
         method: 'GET',
-        headers: reqH,
         signal: st.abort ? st.abort.signal : undefined,
         cache: 'no-store',
         redirect: 'follow'
-      }).then(function(r) {
+      };
+      if (Object.keys(reqH).length) fetchOpts.headers = reqH;
+      return fetch(url, fetchOpts).then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return asBin ? r.arrayBuffer() : r.text();
       });
@@ -762,15 +783,16 @@
 
     function fetchPlaylist(url) {
       var target = url;
+      var callHdrs = null;
       var rBase = (_g.XuperRelay && typeof _g.XuperRelay.relayBase === 'function') ? _g.XuperRelay.relayBase() : '';
       if (rBase && manifestUrl.indexOf(rBase) === 0 && /epictvparaiphone\.top|playlatam\.site/i.test(String(target || ''))) {
         var wrappedVar = _g.XuperRelay.wrapPortalRequest(target, { headers: hdrs || {} });
         if (wrappedVar && wrappedVar.relayed) {
           target = wrappedVar.url;
-          if (wrappedVar.options && wrappedVar.options.headers) hdrs = Object.assign({}, hdrs || {}, wrappedVar.options.headers);
+          if (wrappedVar.options && wrappedVar.options.headers) callHdrs = Object.assign({}, hdrs || {}, wrappedVar.options.headers);
         }
       }
-      return req(target, false).then(function(txt) {
+      return req(target, false, callHdrs).then(function(txt) {
         var lines = txt.replace(/\r/g, '').split('\n');
         var seqBase = 0, target = 5, variant = null, chunks = [];
         for (var i = 0; i < lines.length; i++) {
@@ -806,10 +828,10 @@
       return p;
     }
 
-    function sbAppend(sb, buf) {
+    function sbAppend(sb, buf, curTime) {
       return new Promise(function(resolve, reject) {
         if (st.stopped) return resolve();
-        function run() {
+        function run(retriedQuota) {
           var done = false;
           var tmo = setTimeout(function() { cleanup(); resolve(); }, 8000);
           function cleanup() {
@@ -817,36 +839,66 @@
             sb.removeEventListener('updateend', onOk);
             sb.removeEventListener('error', onBad);
           }
+          function tryQuotaRetry(errObj) {
+            var isQ = errObj && (errObj.name === 'QuotaExceededError' || errObj.code === 22 || /quota/i.test(errObj.message || ''));
+            if (!retriedQuota && isQ && sb.buffered && sb.buffered.length) {
+              var cut = Math.max(0, (curTime || sb.buffered.end(sb.buffered.length - 1)) - 5);
+              if (cut > sb.buffered.start(0) + 0.5) {
+                var rmDone = function() {
+                  sb.removeEventListener('updateend', rmDone);
+                  run(true);
+                };
+                sb.addEventListener('updateend', rmDone);
+                try { sb.remove(sb.buffered.start(0), cut); return true; } catch (_) { sb.removeEventListener('updateend', rmDone); }
+              }
+            }
+            return false;
+          }
           function onOk() { if (!done) { done = true; cleanup(); resolve(); } }
-          function onBad() { if (!done) { done = true; cleanup(); reject(new Error('SourceBuffer error')); } }
+          function onBad(ev) {
+            if (done) return;
+            done = true; cleanup();
+            if (!tryQuotaRetry(ev)) reject(new Error('SourceBuffer error'));
+          }
           sb.addEventListener('updateend', onOk);
           sb.addEventListener('error', onBad);
           try {
             sb.appendBuffer(buf);
           } catch (e) {
-            done = true; cleanup(); reject(e);
+            done = true; cleanup();
+            if (!tryQuotaRetry(e)) reject(e);
           }
         }
-        if (!sb.updating) run();
+        if (!sb.updating) run(false);
         else {
-          var waitFn = function() { sb.removeEventListener('updateend', waitFn); run(); };
+          var waitFn = function() { sb.removeEventListener('updateend', waitFn); run(false); };
           sb.addEventListener('updateend', waitFn);
         }
       });
     }
 
     function sbTrim(sb, ct) {
-      if (!sb || st.stopped || !ct || ct < 35 || sb.updating) return Promise.resolve();
+      var backWin = isT3Ua ? 10 : 14;
+      if (!sb || st.stopped || !ct || ct < (backWin + 4) || sb.updating) return Promise.resolve();
       try {
-        if (sb.buffered && sb.buffered.length && sb.buffered.start(0) < ct - 24) {
+        if (sb.buffered && sb.buffered.length && sb.buffered.start(0) < ct - backWin) {
           return new Promise(function(resolve) {
             var fn = function() { sb.removeEventListener('updateend', fn); resolve(); };
             sb.addEventListener('updateend', fn);
-            try { sb.remove(sb.buffered.start(0), ct - 20); } catch (_) { sb.removeEventListener('updateend', fn); resolve(); }
+            try { sb.remove(sb.buffered.start(0), ct - backWin); } catch (_) { sb.removeEventListener('updateend', fn); resolve(); }
           });
         }
       } catch (_) {}
       return Promise.resolve();
+    }
+
+    function trackDurSec(tr, rate, fallback) {
+      if (!tr || !tr.samples || !tr.samples.length) return fallback || 4;
+      var sm = tr.samples;
+      if (sm.length === 1) return (sm[0].duration ? (sm[0].duration / rate) : (fallback || 0.04));
+      var span = sm[sm.length - 1].dts - sm[0].dts;
+      var avg = span > 0 ? (span / (sm.length - 1)) : (sm[0].duration || 0);
+      return Math.max(0.04, (span + avg) / rate);
     }
 
     function failOut(err) {
@@ -858,7 +910,21 @@
     st.onPlaying = function() {
       if (st.stopped) return;
       st.started = true;
+      if (st.playRetryTimer) { try { clearInterval(st.playRetryTimer); } catch (_) {} st.playRetryTimer = null; }
       if (typeof cbs.onPlaying === 'function') cbs.onPlaying();
+    };
+    st.onTimeUpdate = function() {
+      if (st.stopped || st.started) return;
+      if ((videoEl.currentTime || 0) > 0) st.onPlaying();
+    };
+    st.onCanPlay = function() {
+      if (st.stopped) return;
+      try {
+        if (videoEl.paused) {
+          var kp = videoEl.play();
+          if (kp && kp.catch) kp.catch(function() {});
+        }
+      } catch (_) {}
     };
     st.onErr = function() {
       if (st.stopped) return;
@@ -866,7 +932,12 @@
       if (!st.started) failOut(new Error('MSE video error ' + code));
     };
     videoEl.addEventListener('playing', st.onPlaying);
+    videoEl.addEventListener('timeupdate', st.onTimeUpdate);
+    videoEl.addEventListener('canplay', st.onCanPlay);
+    videoEl.addEventListener('loadeddata', st.onCanPlay);
     videoEl.addEventListener('error', st.onErr);
+
+    var isT3Ua = /Tizen\s*3\.|AppleWebKit\/538/i.test(_g.__xeOrigUserAgent || (typeof navigator !== 'undefined' ? (navigator.userAgent || '') : ''));
 
     fetchPlaylist(manifestUrl).then(function(info) {
       if (st.stopped) return;
@@ -881,11 +952,13 @@
         var parsed = _g.CactusFmp4.demux(new Uint8Array(bytes));
         var v = parsed && parsed.video;
         var a = (!st.noAudio && parsed && parsed.audio && parsed.audio.length) ? parsed.audio[0] : null;
-        if (!v || !v.codec) throw new Error('Pista de vídeo no reconocida');
+        if (!v || !v.codec || !v.samples || !v.samples.length) throw new Error('Pista de vídeo no reconocida');
         var mimeV = 'video/mp4; codecs="' + v.codec + '"';
-        if (!MS.isTypeSupported(mimeV)) throw new Error('MSE no soporta ' + v.codec);
         var mimeA = a ? ('audio/mp4; codecs="' + a.codec + '"') : null;
-        if (mimeA && !MS.isTypeSupported(mimeA)) { a = null; mimeA = null; }
+        var mimeMux = (v && a) ? ('video/mp4; codecs="' + v.codec + ',' + a.codec + '"') : null;
+        var useMuxed = !!(mimeMux && MS.isTypeSupported(mimeMux));
+        if (!useMuxed && !MS.isTypeSupported(mimeV)) throw new Error('MSE no soporta ' + v.codec);
+        if (!useMuxed && mimeA && !MS.isTypeSupported(mimeA)) { a = null; mimeA = null; }
 
         var ms = new MS();
         st.blobUrl = URL.createObjectURL(ms);
@@ -895,62 +968,163 @@
         function onSourceOpen() {
           if (msOpened || st.stopped || ms.readyState !== 'open') return;
           msOpened = true;
-          var vb = ms.addSourceBuffer(mimeV);
+          var vb = ms.addSourceBuffer(useMuxed ? mimeMux : mimeV);
           var ab = null;
-          if (mimeA) { try { ab = ms.addSourceBuffer(mimeA); } catch (_) { ab = null; a = null; } }
+          if (!useMuxed && !isT3Ua && mimeA) {
+            try { ab = ms.addSourceBuffer(mimeA); } catch (_) { ab = null; a = null; }
+          } else if (!useMuxed && isT3Ua) {
+            // En Tizen 3.0 WebKit 538.1 nunca abrir segundo SourceBuffer simultáneo
+            a = null;
+          }
+          var aRate = (a && a.timescale) || 48000;
           var vOrig = v.samples[0].dts;
-          var aOrig = (ab && a && a.samples.length) ? a.samples[0].dts : 0;
+          var aOrig = (a && a.samples && a.samples.length) ? a.samples[0].dts : 0;
+          var commonOriginSec = (useMuxed && a) ? Math.min(vOrig / 90000, aOrig / aRate) : 0;
+          var vOffsetSec = useMuxed ? -commonOriginSec : -(vOrig / 90000);
+          var aOffsetSec = (useMuxed && a) ? -commonOriginSec : -(aOrig / aRate);
+          var vStartBase = Math.max(0, Math.round(((vOrig / 90000) + vOffsetSec) * 90000));
+          var aStartBase = (a && a.samples && a.samples.length)
+            ? (useMuxed ? Math.max(0, Math.round(aOrig - commonOriginSec * aRate)) : Math.max(0, Math.round(((aOrig / aRate) + aOffsetSec) * aRate)))
+            : 0;
+          var lastVEndSec = (vStartBase / 90000) + trackDurSec(v, 90000, 4);
+          var lastAEndSec = (a && a.samples && a.samples.length)
+            ? ((aStartBase / aRate) + trackDurSec(a, aRate, 4))
+            : lastVEndSec;
+
           var hints = { video: { params: v.params, sps: v.sps } };
           var mp4Seq = 1, lastSeq = firstItem.seq;
+          var seenUri = {};
+          var seenList = [firstItem.url];
+          seenUri[firstItem.url] = true;
+          var emptySeqPolls = 0;
+          var initTracks = (useMuxed && a) ? [v, a] : v;
+          var consecFail = 0;
 
-          sbAppend(vb, _g.CactusFmp4.initSegment(v)).then(function() {
-            return (ab && a) ? sbAppend(ab, _g.CactusFmp4.initSegment(a)) : null;
+          sbAppend(vb, _g.CactusFmp4.initSegment(initTracks), 0).then(function() {
+            return (!useMuxed && ab && a) ? sbAppend(ab, _g.CactusFmp4.initSegment(a), 0) : null;
           }).then(function() {
-            return sbAppend(vb, _g.CactusFmp4.mediaSegment(v, mp4Seq, 0));
-          }).then(function() {
-            if (ab && a && a.samples.length) {
-              return sbAppend(ab, _g.CactusFmp4.mediaSegment(a, mp4Seq, Math.max(0, Math.round(a.samples[0].dts - aOrig))));
+            if (useMuxed && a && a.samples && a.samples.length) {
+              return sbAppend(vb, _g.CactusFmp4.mediaSegment([v, a], mp4Seq, [vStartBase, aStartBase]), 0);
             }
+            return sbAppend(vb, _g.CactusFmp4.mediaSegment(v, mp4Seq, vStartBase), 0).then(function() {
+              if (!useMuxed && ab && a && a.samples && a.samples.length) {
+                return sbAppend(ab, _g.CactusFmp4.mediaSegment(a, mp4Seq, aStartBase), 0);
+              }
+            });
           }).then(function() {
             if (st.stopped) return;
             mp4Seq++;
             delete st.segCache[firstItem.seq];
             try { videoEl.muted = false; videoEl.volume = 1; } catch (_) {}
-            var pr = videoEl.play();
-            if (pr && pr.catch) pr.catch(function() { try { videoEl.muted = true; videoEl.play(); } catch (_) {} });
+            var kickPlay = function() {
+              if (st.stopped) return;
+              try {
+                var pr = videoEl.play();
+                if (pr && pr.catch) pr.catch(function() { try { videoEl.muted = true; videoEl.play(); } catch (_) {} });
+              } catch (_) {}
+            };
+            kickPlay();
+            var kickTries = 0;
+            st.playRetryTimer = setInterval(function() {
+              kickTries++;
+              if (st.stopped || st.started || ((videoEl.currentTime || 0) > 0 && !videoEl.paused) || kickTries > 16) {
+                try { clearInterval(st.playRetryTimer); } catch (_) {}
+                st.playRetryTimer = null;
+                if (!st.stopped && !st.started && (videoEl.currentTime || 0) > 0) st.onPlaying();
+                return;
+              }
+              if (videoEl.paused) kickPlay();
+            }, 450);
 
             function step() {
               if (st.stopped) return;
               fetchPlaylist(manifestUrl).then(function(nxt) {
                 if (st.stopped) return;
+                consecFail = 0;
                 var arr = (nxt && nxt.chunks) || [];
                 var pending = [];
                 for (var k = 0; k < arr.length; k++) {
-                  if (arr[k].seq > lastSeq) pending.push(arr[k]);
+                  if (arr[k].seq > lastSeq && !seenUri[arr[k].url]) pending.push(arr[k]);
+                }
+                if (!pending.length && arr.length) {
+                  emptySeqPolls++;
+                  var unseenArr = [];
+                  for (var uk = 0; uk < arr.length; uk++) {
+                    if (!seenUri[arr[uk].url]) unseenArr.push(arr[uk]);
+                  }
+                  if (unseenArr.length && (emptySeqPolls >= 2 || arr[arr.length - 1].seq < lastSeq)) {
+                    emptySeqPolls = 0;
+                    pending = unseenArr.slice(-4);
+                    lastSeq = pending[0].seq - 1;
+                  }
+                } else {
+                  emptySeqPolls = 0;
+                }
+                if (seenList.length > 120) {
+                  var keepMap = {};
+                  for (var ak = 0; ak < arr.length; ak++) keepMap[arr[ak].url] = true;
+                  var dropN = seenList.length - 60;
+                  for (var dk = 0; dk < dropN; dk++) {
+                    var oldU = seenList.shift();
+                    if (!keepMap[oldU]) delete seenUri[oldU];
+                  }
                 }
                 function nextSeg(idx) {
                   if (st.stopped) return;
                   if (idx >= pending.length) {
-                    st.timer = setTimeout(step, Math.min(3000, Math.max(1000, (nxt.target || 5) * 350)));
+                    st.timer = setTimeout(step, Math.min(2800, Math.max(900, (nxt.target || 5) * 350)));
                     return;
                   }
                   var item = pending[idx];
                   lastSeq = item.seq;
+                  if (!seenUri[item.url]) { seenUri[item.url] = true; seenList.push(item.url); }
                   if (pending[idx + 1]) fetchSeg(pending[idx + 1]).catch(function() {});
                   fetchSeg(item).then(function(abuf) {
                     if (st.stopped) return;
                     var dm = _g.CactusFmp4.demux(new Uint8Array(abuf), hints);
-                    var dv = dm && dm.video, da = (ab && dm && dm.audio && dm.audio.length) ? dm.audio[0] : null;
-                    if (!dv || !dv.samples.length) return nextSeg(idx + 1);
+                    var dv = dm && dm.video;
+                    var da = ((useMuxed || ab) && dm && dm.audio && dm.audio.length) ? dm.audio[0] : null;
+                    if (!dv || !dv.samples || !dv.samples.length) return nextSeg(idx + 1);
                     hints = { video: { params: dv.params, sps: dv.sps } };
-                    var vt = Math.max(0, Math.round(dv.samples[0].dts - vOrig));
-                    return sbAppend(vb, _g.CactusFmp4.mediaSegment(dv, mp4Seq, vt)).then(function() {
-                      if (ab && da && da.samples.length) {
-                        var at = Math.max(0, Math.round(da.samples[0].dts - aOrig));
-                        return sbAppend(ab, _g.CactusFmp4.mediaSegment(da, mp4Seq, at));
+                    var rawVSec = dv.samples[0].dts / 90000;
+                    var relVSec = rawVSec + vOffsetSec;
+                    var rebased = false;
+                    if (relVSec < lastVEndSec - 1.5 || relVSec > lastVEndSec + 3.5) {
+                      vOffsetSec = lastVEndSec - rawVSec;
+                      rebased = true;
+                    }
+                    var tbase = Math.max(0, Math.round((rawVSec + vOffsetSec) * 90000));
+                    lastVEndSec = (tbase / 90000) + trackDurSec(dv, 90000, nxt.target || 4);
+                    var curRate = (da && da.timescale) || aRate;
+                    var appP;
+                    if (useMuxed && a && da && da.samples && da.samples.length) {
+                      var rawASecMux = da.samples[0].dts / curRate;
+                      var relASecMux = rawASecMux + aOffsetSec;
+                      if (rebased) {
+                        aOffsetSec = (Math.abs(rawASecMux - rawVSec) < 3.0) ? vOffsetSec : (lastAEndSec - rawASecMux);
+                      } else if (relASecMux < lastAEndSec - 1.5 || relASecMux > lastAEndSec + 3.5) {
+                        aOffsetSec = lastAEndSec - rawASecMux;
                       }
-                    }).then(function() {
+                      var abaseMux = Math.max(0, Math.round((rawASecMux + aOffsetSec) * curRate));
+                      lastAEndSec = (abaseMux / curRate) + trackDurSec(da, curRate, nxt.target || 4);
+                      appP = sbAppend(vb, _g.CactusFmp4.mediaSegment([dv, da], mp4Seq, [tbase, abaseMux]), videoEl.currentTime || 0);
+                    } else {
+                      appP = sbAppend(vb, _g.CactusFmp4.mediaSegment(dv, mp4Seq, tbase), videoEl.currentTime || 0).then(function() {
+                        if (!useMuxed && ab && da && da.samples && da.samples.length) {
+                          var rawASec = da.samples[0].dts / curRate;
+                          var relASec = rawASec + aOffsetSec;
+                          if (rebased || relASec < lastAEndSec - 1.5 || relASec > lastAEndSec + 3.5) {
+                            aOffsetSec = lastAEndSec - rawASec;
+                          }
+                          var abase = Math.max(0, Math.round((rawASec + aOffsetSec) * curRate));
+                          lastAEndSec = (abase / curRate) + trackDurSec(da, curRate, nxt.target || 4);
+                          return sbAppend(ab, _g.CactusFmp4.mediaSegment(da, mp4Seq, abase), videoEl.currentTime || 0);
+                        }
+                      });
+                    }
+                    return appP.then(function() {
                       mp4Seq++;
+                      consecFail = 0;
                       delete st.segCache[item.seq];
                       return sbTrim(vb, videoEl.currentTime || 0).then(function() {
                         return ab ? sbTrim(ab, videoEl.currentTime || 0) : null;
@@ -958,17 +1132,22 @@
                     }).then(function waitBuf() {
                       if (st.stopped) return;
                       var b = videoEl.buffered;
-                      if (!b || !b.length || (b.end(b.length - 1) - (videoEl.currentTime || 0)) <= 24) {
+                      var maxFwd = isT3Ua ? 10 : 16;
+                      if (!b || !b.length || (b.end(b.length - 1) - (videoEl.currentTime || 0)) <= maxFwd) {
                         return nextSeg(idx + 1);
                       }
                       st.timer = setTimeout(waitBuf, 350);
                     });
-                  }).catch(function() {
+                  }).catch(function(segErr) {
+                    consecFail++;
+                    if (consecFail >= 4) { failOut(segErr || new Error('Segmentos sin respuesta')); return; }
                     if (!st.stopped) st.timer = setTimeout(function() { nextSeg(idx + 1); }, 300);
                   });
                 }
                 nextSeg(0);
-              }).catch(function() {
+              }).catch(function(manErr) {
+                consecFail++;
+                if (consecFail >= 4) { failOut(manErr || new Error('Playlist sin respuesta')); return; }
                 if (!st.stopped) st.timer = setTimeout(step, 2000);
               });
             }

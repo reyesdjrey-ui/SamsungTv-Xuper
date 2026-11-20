@@ -540,14 +540,17 @@
       return /playlatam\.site|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221/i.test(String(url || ''));
     }
 
+    var TIZEN3_STREAM_PROXY = 'http://tizen3-stream-relay.eclecticempire03.workers.dev/stream';
+
     function isEpicStreamProxyUrl(url) {
-      return /tizenxuper-tv\.pages\.dev\/stream-proxy/i.test(String(url || ''));
+      return /tizenxuper-tv\.pages\.dev\/stream-proxy|tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream/i.test(String(url || ''));
     }
 
     function buildEpicStreamProxyUrl(rawUrl) {
       var u = String(rawUrl || '').trim();
       if (!u || isEpicStreamProxyUrl(u)) return u;
-      return EPIC_STREAM_PROXY + '?cv=2&url=' + encodeURIComponent(u) + '&pulsera=1';
+      var baseProxy = isTizen3Device() ? TIZEN3_STREAM_PROXY : EPIC_STREAM_PROXY;
+      return baseProxy + '?cv=2&url=' + encodeURIComponent(u) + '&pulsera=1';
     }
 
     function isPortalCredExpired() {
@@ -1990,6 +1993,63 @@
           if (k === 'espnuhd' || k === 'espnu') return 10;
           return 100;
         };
+        if (t3LogoSkip) {
+          var t3EmbedOnlyRe = /sofayshop\.st|104game\.click|pirlotv\.la|tvf90\.com|streamx[a-z0-9]*\.sbs|candyshop\.st|cdplay\.live|playvi\.org/i;
+          var t3CompatUrlRe = /epictvparaiphone\.top|playlatam\.site\/perelman|^http:\/\//i;
+          var t3StaticPools = (w.__ESPN_CHANNELS || []).concat(w.__EPIC_SPORTS_CHANNELS || []);
+          var filteredT3 = [];
+          for (i = 0; i < items.length; i++) {
+            var it = items[i];
+            if (!it) continue;
+            var allU = [it.url || it.streamUrl || ''].concat(Array.isArray(it.backupUrls) ? it.backupUrls : []);
+            var goodU = [];
+            for (var ui2 = 0; ui2 < allU.length; ui2++) {
+              var cu2 = String(allU[ui2] || '').trim();
+              if (!cu2) continue;
+              if (t3CompatUrlRe.test(cu2) || !t3EmbedOnlyRe.test(cu2)) {
+                if (goodU.indexOf(cu2) === -1) goodU.push(cu2);
+              }
+            }
+            if (!goodU.length && (it.masterFallbackCode || it.channelCode)) {
+              var targetCodeT3 = String(it.masterFallbackCode || it.channelCode || '');
+              var normKeyT3 = normalizeEspnBucketKey(it.name, it);
+              for (var sp = 0; sp < t3StaticPools.length; sp++) {
+                var stItem = t3StaticPools[sp];
+                if (!stItem) continue;
+                var codeMatch = targetCodeT3 && stItem.channelCode === targetCodeT3;
+                var keyMatch = normKeyT3 && normalizeEspnBucketKey(stItem.name, stItem) === normKeyT3;
+                if (!codeMatch && !keyMatch) continue;
+                var stCand = [stItem.url || stItem.streamUrl || ''].concat(Array.isArray(stItem.backupUrls) ? stItem.backupUrls : []);
+                for (var scu = 0; scu < stCand.length; scu++) {
+                  var su2 = String(stCand[scu] || '').trim();
+                  if (su2 && (t3CompatUrlRe.test(su2) || !t3EmbedOnlyRe.test(su2)) && goodU.indexOf(su2) === -1) {
+                    goodU.push(su2);
+                  }
+                }
+              }
+            }
+            var cachedFbObj = it.masterFallbackCode ? channelCache[it.masterFallbackCode] : null;
+            var cachedFbAddrs = cachedFbObj && Array.isArray(cachedFbObj.liveAddressList) && cachedFbObj.liveAddressList.length ? cachedFbObj.liveAddressList : null;
+            var hasRealLive76 = !!((Array.isArray(it.liveAddressList) && it.liveAddressList.length) || cachedFbAddrs);
+            if (!goodU.length && !hasRealLive76) continue;
+            if (goodU.length) {
+              it.url = goodU[0];
+              it.streamUrl = goodU[0];
+              it.backupUrls = goodU.slice(1);
+            } else if (hasRealLive76) {
+              it.url = '';
+              it.streamUrl = '';
+              it.backupUrls = [];
+              if ((!it.liveAddressList || !it.liveAddressList.length) && cachedFbAddrs) {
+                it.channelCode = it.masterFallbackCode;
+                it.liveAddressList = cachedFbAddrs;
+              }
+            }
+            filteredT3.push(it);
+          }
+          items = filteredT3;
+        }
+
         items.sort(function (a, b) {
           var ra = coreEspnRank(a);
           var rb = coreEspnRank(b);
@@ -2785,7 +2845,7 @@
       if (isTizen3Device()) {
         var chLabelT3 = String((params && params.name) || (menuEntry && menuEntry.name) || (params && params.channelCode) || '');
         if (/espn/i.test(chLabelT3) && w.__BUNDLED_M3U_LISTS && typeof w.__BUNDLED_M3U_LISTS === 'object') {
-          var wantNumM = /espn\s*([2-7]|plus|premium|extra|deportes)/i.exec(chLabelT3);
+          var wantNumM = /espn[\s._-]*(?:the\s*)?([2-8]|plus|premium|extra|deportes|ocho|\bu\b)/i.exec(chLabelT3);
           var wantTag = wantNumM ? wantNumM[1].toLowerCase() : '';
           var m3uKeys = Object.keys(w.__BUNDLED_M3U_LISTS);
           for (var mk = 0; mk < m3uKeys.length; mk++) {
@@ -2799,7 +2859,7 @@
               if (!/^http:\/\//i.test(urlM) || !/espn/i.test(nmM)) continue;
               if (wantTag) {
                 if (nmM.toLowerCase().indexOf(wantTag) === -1) continue;
-              } else if (/espn\s*[2-7]|premium|plus|extra/i.test(nmM)) {
+              } else if (/espn\s*[2-8]|premium|plus|extra|ocho|\bu\b/i.test(nmM)) {
                 continue;
               }
               if (backupCandidates.indexOf(urlM) === -1) backupCandidates.push(urlM);
@@ -2809,21 +2869,21 @@
       }
 
       if (isTizen3Device() && backupCandidates.length > 1) {
+        var t3Perelman = [];
         var t3Http = [];
         var t3Other = [];
         for (var t3i = 0; t3i < backupCandidates.length; t3i++) {
-          var t3u = backupCandidates[t3i];
-          if (/^http:\/\//i.test(String(t3u || ''))) t3Http.push(t3u);
-          else t3Other.push(t3u);
+          var t3u = String(backupCandidates[t3i] || '');
+          if (/epictvparaiphone\.top\/perelman\/|playlatam\.site\/perelman\//i.test(t3u)) t3Perelman.push(backupCandidates[t3i]);
+          else if (/^http:\/\//i.test(t3u)) t3Http.push(backupCandidates[t3i]);
+          else t3Other.push(backupCandidates[t3i]);
         }
-        if (t3Http.length) {
-          backupCandidates = t3Http.concat(t3Other);
-          primaryDirect = backupCandidates[0];
-        }
+        backupCandidates = t3Perelman.concat(t3Http).concat(t3Other);
+        primaryDirect = backupCandidates[0];
       }
 
       var liveTicket = (w.__xuperLiveResolveTicket = (w.__xuperLiveResolveTicket || 0) + 1);
-      var pulseraRe = /epictvparaiphone\.top|playlatam\.site|tizenxuper-tv\.pages\.dev\/stream-proxy/i;
+      var pulseraRe = /epictvparaiphone\.top|playlatam\.site|tizenxuper-tv\.pages\.dev\/stream-proxy|tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream/i;
       var isEpicMenuItem = !!(menuEntry && menuEntry.isEpicMenu) || /^(epicm-|epic247-|espn-|epic-|portal-)/i.test(String(params.channelCode || ''));
       if (isEpicMenuItem) {
         if (backupCandidates.length > 12) backupCandidates = backupCandidates.slice(0, 12);
@@ -2843,6 +2903,15 @@
                 uReq = wrp.url;
                 hReq = wrp.options.headers || hReq;
               }
+            } else if (isEpicStreamProxyUrl(targetU) && relay && typeof relay.buildSigHeadersForUrl === 'function') {
+              var mOrig = /[?&]url=([^&]+)/i.exec(String(targetU));
+              var origForSig = mOrig ? decodeURIComponent(mOrig[1]) : targetU;
+              var sigStream = relay.buildSigHeadersForUrl(origForSig);
+              if (sigStream) {
+                hReq['X-Eclex-Time'] = sigStream['X-Eclex-Time'];
+                hReq['X-Eclex-Duid'] = sigStream['X-Eclex-Duid'];
+                hReq['X-Eclex-Sig'] = sigStream['X-Eclex-Sig'];
+              }
             }
             var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
             var tm = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (_) {} }, 3500) : null;
@@ -2855,6 +2924,51 @@
               if (!resp || !resp.ok) throw new Error('HTTP ' + (resp ? resp.status : 0));
               return resp.text().then(function (txt) {
                 if (!/#EXTM3U/i.test(txt || '')) throw new Error('Manifiesto no válido');
+                if ((!isTizen3Device() || /^http:\/\//i.test(targetU)) && !useRelay && /#EXT-X-STREAM-INF/i.test(txt)) {
+                  var mLines = String(txt || '').split(/\r?\n/);
+                  var firstVar = '';
+                  for (var vi = 0; vi < mLines.length; vi++) {
+                    var vln = String(mLines[vi] || '').trim();
+                    if (vln && vln.charAt(0) !== '#') { firstVar = vln; break; }
+                  }
+                  if (!firstVar) throw new Error('Manifiesto maestro vacío');
+                  var varUrl = firstVar;
+                  if (!/^https?:\/\//i.test(varUrl)) {
+                    try { varUrl = new URL(firstVar, targetU).toString(); } catch (_) {
+                      var mVarB = /^(https?:\/\/[^\/?#]+)(\/[^?#]*)?/i.exec(targetU);
+                      if (mVarB) {
+                        varUrl = firstVar.charAt(0) === '/'
+                          ? (mVarB[1] + firstVar)
+                          : (mVarB[1] + (mVarB[2] || '/').replace(/[^\/]*$/, '') + firstVar);
+                      }
+                    }
+                  }
+                  if (/^http:\/\//i.test(varUrl)) {
+                    var vCtrl = typeof AbortController === 'function' ? new AbortController() : null;
+                    var vTm = vCtrl ? setTimeout(function () { try { vCtrl.abort(); } catch (_) {} }, 2500) : null;
+                    return w.fetch(varUrl, {
+                      method: 'GET',
+                      headers: Object.assign({}, checkHdrs || {}),
+                      signal: vCtrl ? vCtrl.signal : undefined
+                    }).then(function (vResp) {
+                      if (vTm) clearTimeout(vTm);
+                      if (!vResp || !vResp.ok) {
+                        try { (w.__xeDeadUrls || (w.__xeDeadUrls = {}))[targetU] = Date.now(); } catch (_) {}
+                        throw new Error('Manifiesto no válido (variante HTTP ' + (vResp ? vResp.status : 0) + ')');
+                      }
+                      return vResp.text().then(function (vTxt) {
+                        if (!/#EXTM3U/i.test(vTxt || '')) {
+                          throw new Error('Manifiesto variante no válido');
+                        }
+                        return { url: targetU };
+                      });
+                    }, function (vErr) {
+                      if (vTm) clearTimeout(vTm);
+                      if (/Manifiesto/i.test(String(vErr && vErr.message || ''))) throw vErr;
+                      return { url: targetU };
+                    });
+                  }
+                }
                 if ((!isTizen3Device() || /^http:\/\//i.test(targetU)) && !useRelay && !/#EXT-X-STREAM-INF/i.test(txt)) {
                   var pLines = String(txt || '').split(/\r?\n/);
                   var segLines = [];
@@ -2918,8 +3032,10 @@
                 (menuEntry && menuEntry.masterFallbackCode && channelCache[menuEntry.masterFallbackCode]) ||
                 findMatchingMasterChannel(params.name || (menuEntry && menuEntry.name) || '')
               );
-              if (/^https:\/\//i.test(String(checkUrl || '')) && !t3HasMasterFallback) {
-                return { url: checkUrl };
+              if (!isTizen3Device() || !/candyshop\.st/i.test(String(checkUrl || ''))) {
+                if (/^https:\/\//i.test(String(checkUrl || '')) && !t3HasMasterFallback) {
+                  return { url: checkUrl };
+                }
               }
               throw err;
             }
@@ -2928,6 +3044,9 @@
             }
             throw err;
           };
+          if (isTizen3Device() && /epictvparaiphone\.top|playlatam\.site/i.test(checkUrl) && !isEpicStreamProxyUrl(checkUrl)) {
+            return fetchOnce(false, buildEpicStreamProxyUrl(checkUrl), {});
+          }
           return fetchOnce(false).catch(function (err) {
             if (/epictvparaiphone\.top|playlatam\.site/i.test(checkUrl) && !isEpicStreamProxyUrl(checkUrl)) {
               var proxyU = buildEpicStreamProxyUrl(checkUrl);
@@ -3007,13 +3126,6 @@
               }
               if (isPulseraResolved) {
                 rHdrs = getEpicAccessHeaders(rHdrs);
-              } else if (!rHdrs['X-Pulsera']) {
-                for (var pi2 = 0; pi2 < allResolvedBackups.length; pi2++) {
-                  if (pulseraRe.test(allResolvedBackups[pi2])) {
-                    rHdrs = getEpicAccessHeaders(rHdrs);
-                    break;
-                  }
-                }
               }
               w.__xuperCurrentStreamMeta = {
                 url: rUrl,
@@ -4120,8 +4232,11 @@
               }
             }
             if (bUrls.length) {
+              var fbCodeParam = /^(epicm-|epic247-|espn-|epic-|portal-)/i.test(String(params.channelCode || ''))
+                ? params.channelCode
+                : ('portal-' + String(params.channelCode || 'backup'));
               return serviceCall('resolveLive', {
-                channelCode: params.channelCode || 'backup-live',
+                channelCode: fbCodeParam,
                 name: params.name || 'Canal en vivo',
                 streamUrl: bUrls[0],
                 backupUrls: bUrls.slice(1)
@@ -4198,6 +4313,39 @@
         }
         if (method === 'liveCategories') {
           return callback(null, { returnValue: true, categories: buildDefaultLiveCategories(false) });
+        }
+        if (method === 'resolveLive' && params) {
+          var offlineBackups = [];
+          if (Array.isArray(params.backupUrls)) {
+            for (var obi = 0; obi < params.backupUrls.length; obi++) {
+              var obu = String(params.backupUrls[obi] || '').trim();
+              if (/^https?:\/\//i.test(obu) && offlineBackups.indexOf(obu) === -1) offlineBackups.push(obu);
+            }
+          }
+          var offlinePool = (w.__ESPN_CHANNELS || []).concat(w.__EPIC_SPORTS_CHANNELS || []);
+          for (var opi = 0; opi < offlinePool.length; opi++) {
+            var opc = offlinePool[opi];
+            if (!opc) continue;
+            var codeMatchOff = params.channelCode && opc.channelCode === params.channelCode;
+            var nameMatchOff = params.name && opc.name && normalizeMenuFamilyKey(opc.name) === normalizeMenuFamilyKey(params.name);
+            if (!codeMatchOff && !nameMatchOff) continue;
+            var opu = String(opc.streamUrl || opc.url || '').trim();
+            if (/^https?:\/\//i.test(opu) && offlineBackups.indexOf(opu) === -1) offlineBackups.push(opu);
+            if (Array.isArray(opc.backupUrls)) {
+              for (var ob2 = 0; ob2 < opc.backupUrls.length; ob2++) {
+                var bu2 = String(opc.backupUrls[ob2] || '').trim();
+                if (/^https?:\/\//i.test(bu2) && offlineBackups.indexOf(bu2) === -1) offlineBackups.push(bu2);
+              }
+            }
+          }
+          if (offlineBackups.length) {
+            return serviceCall('resolveLive', {
+              channelCode: /^(epicm-|epic247-|espn-|epic-|portal-)/i.test(String(params.channelCode || '')) ? params.channelCode : ('portal-' + String(params.channelCode || 'backup')),
+              name: params.name || 'Canal en vivo',
+              streamUrl: offlineBackups[0],
+              backupUrls: offlineBackups.slice(1)
+            }, callback);
+          }
         }
         callback(err, { returnValue: false, errorText: String(err && err.message || err) });
       });

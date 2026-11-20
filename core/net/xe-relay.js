@@ -53,16 +53,20 @@
     return /Tizen\s*3\.|AppleWebKit\/538/i.test(ua);
   }
 
+  var TIZEN3_RELAY_URL = "http://tizen3-stream-relay.eclecticempire03.workers.dev";
+  var TIZEN3_RELAY_SALT = "Xup3r_T3_R3l4y_#2026_Pr1v";
+
   function relayBase() {
     if (!cfg || cfg.RELAY_ENABLED === false) return "";
-    var base = trimSlash(cfg.RELAY_URL || "");
-    if (base && isTizen3Browser()) {
-      base = base.replace(/^https:\/\//i, "http://");
+    if (isTizen3Browser()) {
+      return TIZEN3_RELAY_URL;
     }
+    var base = trimSlash(cfg.RELAY_URL || "");
     return base;
   }
 
   function relaySalt() {
+    if (isTizen3Browser()) return TIZEN3_RELAY_SALT;
     return (cfg && cfg.RELAY_SALT) || "";
   }
 
@@ -157,6 +161,12 @@
       "X-Eclex-Duid": duid,
       "X-Eclex-Sig": sig
     };
+  }
+
+  function buildSigHeadersForUrl(rawUrl, device) {
+    var p = parseHostAndPath(rawUrl);
+    if (!p) return null;
+    return buildSigHeaders(p.host, device);
   }
 
   function wrapPortalRequest(targetUrl, opts, device) {
@@ -369,6 +379,7 @@
     isStreamHostBlocked: isStreamHostBlocked,
     markStreamHostBlocked: markStreamHostBlocked,
     wrapPortalRequest: wrapPortalRequest,
+    buildSigHeadersForUrl: buildSigHeadersForUrl,
     wrapMediaRequest: wrapMediaRequest,
     fetchMedia: fetchMedia,
     wrapSubtitleUrl: wrapSubtitleUrl,
