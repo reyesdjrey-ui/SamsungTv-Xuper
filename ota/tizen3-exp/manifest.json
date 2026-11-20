@@ -1,10 +1,10 @@
 {
-  "rev": 20,
-  "version": "3.0.7-t3exp",
+  "rev": 21,
+  "version": "3.0.8-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-20.json",
-  "sha256": "054ec6f12a6b0bf7bda925ff9c846dfe15f67fd29e7bcc4388ea555ab49d88c7",
-  "sig": "4e0304d72c0a3098b16f87e043f501c6",
-  "notes": "v3.0.7-t3exp: ES5 strict block-function fix, Tizen 2.3/2.4 AVPlay VOD & diag",
-  "updatedAt": "2026-11-20T20:14:10.654Z"
+  "bundle": "bundle-21.json",
+  "sha256": "7a4921184f005d5b549aa4a7b7ef68ac19308f9a3853ab6420b677dc6228484b",
+  "sig": "c50e11384c73ed4c0265c1a5f356f0ee",
+  "notes": "v3.0.8-t3exp: fix all nested function declarations in xe-controller.js for WebKit 538.1 strict mode",
+  "updatedAt": "2026-11-20T23:30:23.345Z"
 }
