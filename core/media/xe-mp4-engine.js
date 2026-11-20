@@ -126,21 +126,10 @@
     return null;
   }
 
-  function abortPendingXhrs(s) {
-    if (!s || !Array.isArray(s.pendingXhrs)) return;
-    while (s.pendingXhrs.length) {
-      var x = s.pendingXhrs.pop();
-      try { if (x) x.abort(); } catch (_) {}
-    }
-  }
-
   // XMLHttpRequest works natively on all Tizen versions (3.0 WebKit 538.1 -> 10.0)
   function fetchRange(s, start, end, attempt) {
     attempt = attempt || 0;
     if (s.ended || active !== s) return Promise.reject(Error('Reproducción cancelada'));
-    if (s.session && s.session.expired && (Date.now() / 1000) >= (s.session.expired - 150) && typeof s.renewSession === 'function') {
-      s.renewSession().catch(function () {});
-    }
     var req = s.session.mediaRequest('bytes=' + start + '-' + end);
     if (!req || !/^https?:\/\//i.test(req.url)) {
       return Promise.reject(Error('Destino MP4 no válido'));
@@ -148,13 +137,7 @@
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
       var done = false;
-      if (!s.pendingXhrs) s.pendingXhrs = [];
-      s.pendingXhrs.push(xhr);
-      function removeXhr() {
-        if (!s.pendingXhrs) return;
-        var xi = s.pendingXhrs.indexOf(xhr);
-        if (xi !== -1) s.pendingXhrs.splice(xi, 1);
-      }
+      s.pendingXhr = xhr;
       xhr.open('GET', req.url, true);
       xhr.responseType = 'arraybuffer';
       xhr.timeout = 25000;
@@ -169,19 +152,19 @@
       function finishErr(err) {
         if (done) return;
         done = true;
-        removeXhr();
+        if (s.pendingXhr === xhr) s.pendingXhr = null;
         if (s.ended || active !== s) return reject(Error('Reproducción cancelada'));
-        if (attempt < 3) {
+        if (attempt < 2) {
           setTimeout(function () {
             fetchRange(s, start, end, attempt + 1).then(resolve, reject);
-          }, 600 * (attempt + 1));
+          }, 600);
           return;
         }
         reject(err);
       }
       xhr.onload = function () {
         if (done) return;
-        removeXhr();
+        if (s.pendingXhr === xhr) s.pendingXhr = null;
         if ((xhr.status === 401 || xhr.status === 403) && attempt < 3 && typeof s.renewSession === 'function') {
           done = true;
           s.renewSession().then(function () {
@@ -205,7 +188,6 @@
       xhr.onerror = function () { finishErr(Error('Error de red/CORS al leer MP4 desde Tizen.')); };
       xhr.ontimeout = function () { finishErr(Error('Tiempo de espera agotado al leer MP4.')); };
       xhr.onabort = function () {
-        removeXhr();
         if (!done) { done = true; reject(Error('Reproducción cancelada')); }
       };
       try { xhr.send(); } catch (e) { finishErr(e); }
@@ -604,10 +586,8 @@
     var s = active;
     active = null;
     s.ended = true;
-    abortPendingXhrs(s);
+    if (s.pendingXhr) { try { s.pendingXhr.abort(); } catch (_) {} s.pendingXhr = null; }
     if (s.loopTimer) { clearTimeout(s.loopTimer); s.loopTimer = null; }
-    if (s.stallTimer) { clearInterval(s.stallTimer); s.stallTimer = null; }
-    if (s.seekDebounceTimer) { clearTimeout(s.seekDebounceTimer); s.seekDebounceTimer = null; }
     try {
       if (s.video) {
         if (s.audioAdapter && s.video._cactusAudio === s.audioAdapter) s.video._cactusAudio = null;
@@ -624,44 +604,22 @@
     if (s.status) s.status.textContent = '';
   }
 
-  function pruneBuffer(sb, now, force, retry) {
-    retry = retry || 0;
+  function pruneBuffer(sb, now, force) {
     return new Promise(function (resolve) {
       if (!sb || !sb.buffered || !sb.buffered.length) return resolve();
       function run() {
         if (sb.updating) { setTimeout(run, 25); return; }
-        var tm = null;
-        var finished = false;
-        function finish() {
-          if (finished) return;
-          finished = true;
-          if (tm) { clearTimeout(tm); tm = null; }
-          sb.removeEventListener('updateend', onDone);
-          resolve();
-        }
-        function onDone() { finish(); }
         try {
-          if (force && sb.buffered.length > 1) {
-            for (var b = sb.buffered.length - 1; b >= 0; b--) {
-              if (sb.buffered.start(b) > now + 26) {
-                tm = setTimeout(finish, 4000);
-                sb.addEventListener('updateend', onDone);
-                sb.remove(sb.buffered.start(b), sb.buffered.end(b));
-                return;
-              }
-            }
-          }
           var start = sb.buffered.start(0);
-          var keepBehind = force ? (retry >= 2 ? 2 : (retry === 1 ? 5 : 9)) : (now > 25 ? 14 : -1);
-          var removeUntil = keepBehind >= 0 ? Math.max(0, now - keepBehind) : -1;
-          if (removeUntil > start + 1.5) {
-            tm = setTimeout(finish, 4000);
+          var removeUntil = force ? Math.max(0, now - 10) : (now > 40 ? now - 25 : -1);
+          if (removeUntil > start + 2) {
+            var onDone = function () { sb.removeEventListener('updateend', onDone); resolve(); };
             sb.addEventListener('updateend', onDone);
             sb.remove(start, removeUntil);
             return;
           }
         } catch (_) {}
-        finish();
+        resolve();
       }
       run();
     });
@@ -682,8 +640,8 @@
           var onErr = function (e) {
             sb.removeEventListener('updateend', onEnd);
             sb.removeEventListener('error', onErr);
-            if (retry < 3 && e && (e.name === 'QuotaExceededError' || e.code === 22 || /quota/i.test(e.message || ''))) {
-              pruneBuffer(sb, (s.video && s.video.currentTime) || 60, true, retry).then(function () {
+            if (retry < 2 && e && (e.name === 'QuotaExceededError' || e.code === 22)) {
+              pruneBuffer(sb, (s.video && s.video.currentTime) || 60, true).then(function () {
                 return appendBuf(sb, data, s, retry + 1);
               }).then(resolve, reject);
               return;
@@ -735,29 +693,20 @@
       status: status,
       ended: false,
       segIndex: 0,
-      seekGen: 0,
       seq: 1,
       feeding: false,
-      pendingXhrs: [],
+      pendingXhr: null,
       loopTimer: null,
-      stallTimer: null,
       objectUrl: null,
       captions: null,
-      _renewing: null,
       renewSession: function () {
         if (!w.CactusDirect || !s.sessionOpts) return Promise.reject(Error('Sin sesión renovable'));
-        if (s._renewing) return s._renewing;
-        s._renewing = w.CactusDirect.connect().then(function (c) {
+        return w.CactusDirect.connect().then(function (c) {
           return c.stream.getSlbInfo({ forceRefresh: true }).then(function (slb) {
             s.session = c.stream.createCflSession('vod', s.sessionOpts, slb);
-            s._renewing = null;
             return s.session;
           });
-        }).catch(function (err) {
-          s._renewing = null;
-          throw err;
         });
-        return s._renewing;
       }
     };
     active = s;
@@ -853,7 +802,6 @@
                 try { w.CactusPlaybackActions.completed(); } catch (_) {}
               }
             };
-            var lastWatchCt = -1, mp4StallTicks = 0;
             s.onSeeking = function () {
               var t = video.currentTime || 0;
               var targetSeg = 0;
@@ -865,18 +813,10 @@
                 if (t >= video.buffered.start(b) && t < video.buffered.end(b) - 0.5) { isBuf = true; break; }
               }
               if (!isBuf) {
-                lastWatchCt = -1;
-                mp4StallTicks = -2;
                 s.segIndex = targetSeg;
-                s.seekGen++;
-                abortPendingXhrs(s);
+                if (s.pendingXhr) { try { s.pendingXhr.abort(); } catch (_) {} s.pendingXhr = null; }
                 s.feeding = false;
-                if (s.loopTimer) { clearTimeout(s.loopTimer); s.loopTimer = null; }
-                if (s.seekDebounceTimer) { clearTimeout(s.seekDebounceTimer); s.seekDebounceTimer = null; }
-                s.seekDebounceTimer = setTimeout(function () {
-                  s.seekDebounceTimer = null;
-                  if (!s.ended && active === s) pump();
-                }, 95);
+                pump();
               }
             };
 
@@ -884,53 +824,8 @@
             video.addEventListener('ended', s.onEnded);
             video.addEventListener('seeking', s.onSeeking);
 
-            s.stallTimer = setInterval(function () {
-              if (s.ended || active !== s || !started || s.seekDebounceTimer) return;
-              if (video.paused || video.seeking) { lastWatchCt = video.currentTime; mp4StallTicks = 0; return; }
-              var ct = video.currentTime || 0;
-              if (Math.abs(ct - lastWatchCt) < 0.05) {
-                mp4StallTicks++;
-                if (mp4StallTicks >= 3) {
-                  var jumped = false;
-                  for (var bi = 0; bi < video.buffered.length; bi++) {
-                    var bs = video.buffered.start(bi), be = video.buffered.end(bi);
-                    if (bs > ct && bs <= ct + 3.5) {
-                      try {
-                        console.warn('[CactusMP4] Saltando micro-hueco MSE:', ct.toFixed(2), '->', bs.toFixed(2));
-                        video.currentTime = bs + 0.05;
-                        video.play().catch(function () {});
-                        jumped = true;
-                        mp4StallTicks = 0;
-                      } catch (_) {}
-                      break;
-                    }
-                  }
-                  if (!jumped && mp4StallTicks >= 4) {
-                    mp4StallTicks = 0;
-                    var curSeg = 0;
-                    for (var k = 0; k < segments.length; k++) {
-                      if (segments[k].startTime + segments[k].duration > ct) { curSeg = k; break; }
-                    }
-                    if (!s.feeding && s.segIndex > curSeg + 3) {
-                      console.warn('[CactusMP4] Buffer atascado lejos del cursor; reajustando segIndex', s.segIndex, '->', curSeg);
-                      s.segIndex = curSeg;
-                      s.seekGen++;
-                      if (s.loopTimer) { clearTimeout(s.loopTimer); s.loopTimer = null; }
-                      pump();
-                    } else if (!s.feeding && s.segIndex < segments.length) {
-                      if (s.loopTimer) { clearTimeout(s.loopTimer); s.loopTimer = null; }
-                      pump();
-                    }
-                  }
-                }
-              } else {
-                lastWatchCt = ct;
-                mp4StallTicks = 0;
-              }
-            }, 1500);
-
             function pump() {
-              if (s.ended || active !== s || s.feeding || s.seekDebounceTimer) return;
+              if (s.ended || active !== s || s.feeding) return;
               if (s.segIndex >= segments.length) {
                 if (ms.readyState === 'open' && !vSb.updating && (!aSb || !aSb.updating)) {
                   try { ms.endOfStream(); } catch (_) {}
@@ -945,64 +840,53 @@
                   break;
                 }
               }
-              if (ahead > 18 && started) {
-                s.loopTimer = setTimeout(pump, 900);
+              if (ahead > 24 && started) {
+                s.loopTimer = setTimeout(pump, 1000);
                 return;
               }
               s.feeding = true;
-              var curSegIdx = s.segIndex;
-              var curGen = s.seekGen;
-              var seg = segments[curSegIdx];
+              var seg = segments[s.segIndex++];
               var seqNum = s.seq++;
               var vFetch = seg.v ? fetchTrackSamples(s, vTrack, seg.v) : Promise.resolve(null);
               var aFetch = (aSb && seg.a) ? fetchTrackSamples(s, aTrack, seg.a) : Promise.resolve(null);
 
               Promise.all([vFetch, aFetch]).then(function (samplesPair) {
                 if (s.ended || active !== s) return;
-                if (curGen !== s.seekGen) return;
                 var vFrag = samplesPair[0] ? buildMoofMdat(vTrack, seg.v, seqNum, samplesPair[0]) : null;
                 var aFrag = (aSb && samplesPair[1]) ? buildMoofMdat(aTrack, seg.a, seqNum, samplesPair[1]) : null;
                 var appP = vFrag ? appendBuf(vSb, vFrag, s) : Promise.resolve();
                 return appP.then(function () {
                   if (aFrag) return appendBuf(aSb, aFrag, s);
-                }).then(function () {
-                  if (s.ended || active !== s || curGen !== s.seekGen) return;
-                  if (s.segIndex === curSegIdx) {
-                    s.segIndex = curSegIdx + 1;
+                });
+              }).then(function () {
+                if (s.ended || active !== s) return;
+                s.feeding = false;
+                if (!started) {
+                  started = true;
+                  if (status) status.textContent = '';
+                  if (resumeSec > 2) {
+                    try { video.currentTime = resumeSec; } catch (_) {}
                   }
-                  s.feeding = false;
-                  if (!started) {
-                    started = true;
-                    if (status) status.textContent = '';
-                    if (resumeSec > 2) {
-                      try { video.currentTime = resumeSec; } catch (_) {}
-                    }
-                    video.play().then(function () {
-                      if (w.__onStreamPlaying) w.__onStreamPlaying();
-                      resolve(true);
-                    }, function () {
-                      resolve(true);
-                    });
-                  }
-                  pruneBuffer(vSb, ct, false).then(function () {
-                    return aSb ? pruneBuffer(aSb, ct, false) : null;
-                  }).then(function () {
-                    if (!s.ended && active === s) s.loopTimer = setTimeout(pump, 30);
+                  video.play().then(function () {
+                    if (w.__onStreamPlaying) w.__onStreamPlaying();
+                    resolve(true);
+                  }, function () {
+                    resolve(true);
                   });
+                }
+                pruneBuffer(vSb, ct, false).then(function () {
+                  return aSb ? pruneBuffer(aSb, ct, false) : null;
+                }).then(function () {
+                  if (!s.ended && active === s) s.loopTimer = setTimeout(pump, 30);
                 });
               }).catch(function (err) {
-                if (curGen !== s.seekGen) return;
                 s.feeding = false;
                 if (s.ended || active !== s) return;
                 if (!started) {
                   reject(err);
                 } else {
-                  console.warn('[CactusMP4 pump err] seg=' + curSegIdx, err);
-                  pruneBuffer(vSb, ct, true).then(function () {
-                    return aSb ? pruneBuffer(aSb, ct, true) : null;
-                  }).then(function () {
-                    if (!s.ended && active === s) s.loopTimer = setTimeout(pump, 1200);
-                  });
+                  console.warn('[CactusMP4 pump err]', err);
+                  s.loopTimer = setTimeout(pump, 1500);
                 }
               });
             }

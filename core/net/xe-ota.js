@@ -2,8 +2,8 @@
 (function (w, d) {
   "use strict";
 
-  var BASE_REV = 15;
-  var BASE_VERSION = "3.0.4";
+  var BASE_REV = 12;
+  var BASE_VERSION = "3.0.1";
   var OTA_MIRRORS = [
     "https://cdn.jsdelivr.net/gh/reyesdjrey-ui/SamsungTv-Xuper@main/ota/tizen3/",
     "https://reyesdjrey-ui.github.io/SamsungTv-Xuper/ota/tizen3/"
@@ -17,8 +17,7 @@
   var MANIFEST_TIMEOUT_MS = 3500;
   var BUNDLE_TIMEOUT_MS = 12000;
   var IDB_TIMEOUT_MS = 2200;
-  var IDB_WRITE_TIMEOUT_MS = 15000;
-  var BOOT_MAX_WAIT_MS = 6500;
+  var BOOT_MAX_WAIT_MS = 5500;
 
   var MODULES = [
     "core/net/xe-env.js",
@@ -143,13 +142,11 @@
       var tm = setTimeout(function () {
         if (done) return;
         done = true;
+        try { db.close(); } catch (_) {}
         if (cb) cb(false);
-      }, IDB_WRITE_TIMEOUT_MS);
+      }, IDB_TIMEOUT_MS);
       function finish(ok) {
-        if (done) {
-          try { db.close(); } catch (_) {}
-          return;
-        }
+        if (done) return;
         done = true;
         clearTimeout(tm);
         try { db.close(); } catch (_) {}

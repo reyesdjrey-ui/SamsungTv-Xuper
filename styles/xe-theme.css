@@ -2270,12 +2270,6 @@ body.cactus-av-active #screen-detail .detail-ts {
   background: #000000 !important;
   z-index: 1;
 }
-#screen-player:not(.is-mini) .player-stage {
-  left: 0;
-  top: 0;
-  width: 1920px;
-  height: 1080px;
-}
 html.cactus-av-active,
 body.cactus-av-active,
 body.cactus-av-active #app,
@@ -2316,12 +2310,6 @@ body.cactus-av-active #player-stage,
   width: 765px;
   height: 430px;
   object-fit: contain;
-}
-#screen-player:not(.is-mini) .player-video:not(.aspect-4-3) {
-  left: 0;
-  top: 0;
-  width: 1920px;
-  height: 1080px;
 }
 #screen-player.is-mini .player-status {
   bottom: 24px;

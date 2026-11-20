@@ -4,34 +4,7 @@
   var oldHttp = w.CactusDirect && w.CactusDirect.http;
   if (!oldHttp) return;
   var H = 'https://cactus-media.invalid';
-  var current = null, movieSequence = 0, startSequence = 0, cachedSeriesColId = 0;
-  function isMiniPanel(panel){
-    var det=d.getElementById('screen-detail');
-    if(panel&&panel.classList&&panel.classList.contains('is-mini'))return true;
-    return !!(det&&det.classList&&det.classList.contains('is-active')&&(!panel||!panel.classList.contains('is-active')));
-  }
-  function syncDisplayMode(){
-    var panel=d.getElementById('screen-player')||d.getElementById('player'),video=d.getElementById('player-video')||d.getElementById('video'),stage=d.getElementById('player-stage');
-    if(!panel)return;
-    var mini=isMiniPanel(panel);
-    if(!mini){
-      panel.classList.remove('is-mini');
-      d.documentElement.classList.add('modal-open');
-    }else{
-      panel.classList.add('is-mini');
-      d.documentElement.classList.remove('modal-open');
-    }
-    if(stage)void stage.offsetWidth;
-    if(video){
-      void video.offsetWidth;
-      if(!mini&&current){
-        try{
-          video.style.webkitTransform='translateZ(0)';
-          setTimeout(function(){try{if(video)video.style.webkitTransform='';}catch(_){}},0);
-        }catch(_){}
-      }
-    }
-  }
+  var current = null, movieSequence = 0, cachedSeriesColId = 0;
   var FOUR_MB = 4 * 1024 * 1024;
   function errText(e) { return String(e && (e.message || e.name) || e || 'Error'); }
   function reported(e) { return new Error(errText(e).slice(0,240)); }
@@ -317,13 +290,11 @@
     fetchChunk(0);
   };
   function stop() {
-    startSequence++;
     restoreScreenSaver();
     if(w.CactusHEVC && w.CactusHEVC.stop) w.CactusHEVC.stop();
     if(w.CactusMP4 && w.CactusMP4.stop) w.CactusMP4.stop();
     if(!current)return;
     var s=current;if(w.CactusProgress)w.CactusProgress.suspend();current=null;
-    if(s.stallTimer){clearInterval(s.stallTimer);s.stallTimer=null;}
     try{if(s.hls)s.hls.destroy();if(s.video._hls===s.hls)s.video._hls=null;if(s.video._captions){s.video._captions.destroy();s.video._captions=null;}}catch(_){}
     d.removeEventListener('keydown',s.onKey,false);
     try{s.video.pause();s.video.removeAttribute('src');s.video.load();}catch(_){}
@@ -338,7 +309,7 @@
     var video=d.getElementById('player-video')||d.getElementById('video'),panel=d.getElementById('screen-player')||d.getElementById('player'),title=d.getElementById('vod-infobar-title')||d.getElementById('player-title');
     if(!video||!panel)return Promise.reject(Error('No se encontró el reproductor de Cactus TV.'));
     if(title)title.textContent=info&&info.title||'Cactus TV';
-    var isMini = isMiniPanel(panel);
+    var isMini = panel.classList.contains('is-mini') || (typeof ke !== 'undefined' && ke.screen === 'detail');
     if (!isMini) {
       panel.classList.remove('is-mini');
       d.documentElement.classList.add('modal-open');
@@ -403,42 +374,7 @@
     return new Promise(function(resolve,reject){
       var finished=false,timeout=setTimeout(function(){fail(Error('El video no inició en 25 segundos. Última etapa: '+state.phase+'. '+(state.error||'')));},25000);
       function fail(e){if(finished)return;finished=true;clearTimeout(timeout);stop();reject(reported(e));}
-      function success(){
-        if(finished)return;
-        if(w.CactusProgress)w.CactusProgress.ready();
-        finished=true;clearTimeout(timeout);
-        hint.textContent='OK: pausa · ←/→: ±10 s · Atrás: salir';
-        setTimeout(function(){if(hint&&hint.parentNode)hint.parentNode.removeChild(hint);},4000);
-        var lastHlsCt=-1,hlsStallTicks=0;
-        state.stallTimer=setInterval(function(){
-          if(current!==state)return;
-          if(video.paused||video.seeking){lastHlsCt=video.currentTime;hlsStallTicks=0;return;}
-          var ct=video.currentTime||0;
-          if(Math.abs(ct-lastHlsCt)<0.05){
-            hlsStallTicks++;
-            if(hlsStallTicks>=3){
-              var jumped=false;
-              try{
-                for(var bi=0;bi<video.buffered.length;bi++){
-                  var bs=video.buffered.start(bi);
-                  if(bs>ct&&bs<=ct+3.5){
-                    video.currentTime=bs+0.05;
-                    video.play().catch(function(){});
-                    jumped=true;hlsStallTicks=0;break;
-                  }
-                }
-              }catch(_){}
-              if(!jumped&&hlsStallTicks>=4){
-                hlsStallTicks=0;
-                try{hls.startLoad(ct);}catch(_){}
-              }
-            }
-          }else{
-            lastHlsCt=ct;hlsStallTicks=0;
-          }
-        },2000);
-        resolve(true);
-      }
+      function success(){if(finished)return;if(w.CactusProgress)w.CactusProgress.ready();finished=true;clearTimeout(timeout);hint.textContent='OK: pausa · ←/→: ±10 s · Atrás: salir';setTimeout(function(){if(hint&&hint.parentNode)hint.parentNode.removeChild(hint);},4000);resolve(true);}
       var hls=new w.Hls({loader:Loader,startPosition:info&&Number(info.resume)>0?Number(info.resume):-1,backBufferLength:60,maxBufferLength:30,maxMaxBufferLength:60,enableWorker:false,lowLatencyMode:false});
       state.hls=hls;video._hls=hls;
       if(w.Hls.Events.AUDIO_TRACKS_UPDATED)hls.on(w.Hls.Events.AUDIO_TRACKS_UPDATED,function(){
@@ -490,23 +426,17 @@
   }
   w.CactusVODBrowser={
     start:function(player,info){
-      var myStart=++startSequence;
       if(player && player.container==='mp4' && w.CactusMP4){
         stop();
         keepScreenOn();
         return w.CactusMP4.start(player,info);
       }
-      if(!w.CactusHEVC)return start(player,info);
-      return w.CactusHEVC.start(player,info,function(p,i){
-        if(myStart!==startSequence)return Promise.reject(Error('Reproducción cancelada'));
-        return start(p,i);
-      });
+      return w.CactusHEVC ? w.CactusHEVC.start(player,info,start) : start(player,info);
     },
     stop:stop,
-    syncDisplayMode:syncDisplayMode,
     isActive:function(){return !!current || (!!w.CactusMP4 && w.CactusMP4.isActive());},
     idxg:inspectIdxg,
-    version:'1.2.5'
+    version:'1.2.4'
   };
   // Replace only play: preserve all other catalog requests, favorites and sessions.
   w.CactusDirect.http=function(method,args){
