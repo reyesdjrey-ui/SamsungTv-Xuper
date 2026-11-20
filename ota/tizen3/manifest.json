@@ -1,10 +1,10 @@
 {
-  "rev": 15,
-  "version": "3.0.4",
+  "rev": 14,
+  "version": "3.0.3",
   "minBaseRev": 1,
-  "bundle": "bundle-15.json",
-  "sha256": "7134acf3e8794522c1d610839584b66dc8a0b0609e0ad9940bc46641df5c4b97",
-  "sig": "0988d9ccda10d1ca019bdbe62e66c9c6",
-  "notes": "v3.0.4 (Tizen 3.0): fixes anti-congelamiento, single-SB Legacy y respaldo HTTP ESPN/Deportes",
-  "updatedAt": "2026-11-20T01:04:32.292Z"
+  "bundle": "bundle-14.json",
+  "sha256": "88e50e325221b9fd1db1abc71e50b2b2fd34079ce5e78ca75439e137ba6b7467",
+  "sig": "c2857af4ea07b2ac3c7a1867ecf107d1",
+  "notes": "v3.0.3 (Tizen 3.0): canales ESPN, Deportes En Vivo y cambio con boton CH",
+  "updatedAt": "2026-11-19T23:32:52.748Z"
 }
