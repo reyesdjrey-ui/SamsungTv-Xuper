@@ -132,8 +132,11 @@ window.__ESPN_CHANNELS = [
     "now": "En vivo",
     "next": "",
     "time": "EN VIVO",
-    "url": "http://158.172.155.130:8000/play/a0ao/index.m3u8",
-    "streamUrl": "http://158.172.155.130:8000/play/a0ao/index.m3u8",
+    "url": "http://45.134.141.161:2200/ARG/ESPN_Premium_Argentina_HD/tracks-v1a1/mono.m3u8",
+    "streamUrl": "http://45.134.141.161:2200/ARG/ESPN_Premium_Argentina_HD/tracks-v1a1/mono.m3u8",
+    "backupUrls": [
+      "http://158.172.155.130:8000/play/a0ao/index.m3u8"
+    ],
     "liveAddressList": []
   },
   {

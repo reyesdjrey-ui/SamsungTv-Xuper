@@ -580,6 +580,7 @@
     if(av){
       if(wasLive&&preparingSession!==0){
         console.warn('[Cactus AVPlay] Deferring stop/close while prepareAsync is in flight');
+        preparingSession=0;
       }else{
         if(preparingSession!==0)preparingSession=0;
         try{var s=state();if(s==='PLAYING'||s==='PAUSED'||s==='READY'){av.stop();closedActive=true;}}catch(e){}
@@ -722,7 +723,7 @@
               onbufferingprogress:function(){},
               onbufferingcomplete:function(){if(my===session){if(toast)toast.hidden=true;if(window.__onStreamPlaying)window.__onStreamPlaying();}},
               oncurrentplaytime:function(t){if(my===session){updateProgress(Number(t));if(Number(t)>0&&window.__onStreamPlaying)window.__onStreamPlaying();}},
-              onstreamcompleted:function(){if(my===session){playing=false;if(isLive)return;updateActions();showHUD(false);
+              onstreamcompleted:function(){if(my===session){playing=false;if(isLive){fail('La señal en vivo se interrumpió');return;}updateActions();showHUD(false);
                 if(duration>0&&lastPosition<duration-15000){showToast('La reproducción se interrumpió antes del final. Puedes retomarla.',5000);return;}
                 if(window.CactusProgress)window.CactusProgress.completed();
                 var api=window.CactusPlaybackActions;
@@ -972,6 +973,7 @@
     setAudioTrack:setAudioTrack,
     setSubtitleTrack:setSubtitleTrack,
     syncDisplayMode:syncDisplayMode,
+    getState:state,
     isActive:function(){return !!active;}
   };
 })(window,document);

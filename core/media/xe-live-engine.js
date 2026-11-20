@@ -134,6 +134,7 @@
     s.segCache=Object.create(null);
     s.segOrder=[];
     s.segFail=Object.create(null);
+    s.uriToSeq=Object.create(null);
     s.lastM3uSeq=null;
     s.originJumpCount=0;
     s.consecSegFail=0;
@@ -297,7 +298,7 @@
       throw err;
     });
   }
-  function getSegment(s,n){
+  function getSegment(s,n,noAutoRotate){
     var url=s.map[n];if(!url)return Promise.reject(Error('El fragmento '+n+' ya salió de la ventana de emisión.'));
     prefetchLiveSegments(s,n+1,4);
     if(s.segCache&&s.segCache[n]){
@@ -308,14 +309,14 @@
     s.segFail=s.segFail||Object.create(null);
     var prom=request(s.session.segmentRequest(url),'arraybuffer',s.abort.signal,4).catch(function(err){
       if(err&&err.name==='AbortError')throw err;
-      if(/401|403|token/i.test(err && err.message || '')){
-        return refreshWithSelfHeal(s).then(function(){
+      if(!noAutoRotate&&/401|403|token/i.test(err && err.message || '')){
+        return refreshWithSelfHeal(s,true).then(function(){
           return request(s.session.segmentRequest(s.map[n]||url),'arraybuffer',s.abort.signal,3);
         });
       }
       s.segFail[url]=Date.now();
       s.consecSegFail=(s.consecSegFail||0)+1;
-      if(s.consecSegFail>=3&&tryRotateCdnHost(s,'seg-'+(err&&err.httpStatus||'err'))){
+      if(!noAutoRotate&&s.consecSegFail>=3&&tryRotateCdnHost(s,'seg-'+(err&&err.httpStatus||'err'))){
         err.cdnRotated=true;
       }
       throw err;
@@ -457,7 +458,7 @@
     s.key=function(e){if(playing!==s)return;var k=e.keyCode||e.which;
       if(typeof ke!=='undefined'&&ke.channelsOpen)return;
       if(k===415||k===19){e.preventDefault();e.stopImmediatePropagation();
-        if(s.video.paused)s.video.play().catch(function(){});else s.video.pause();}
+        if(s.video.paused){s._userPaused=false;s.video.play().catch(function(){});}else{s._userPaused=true;s.video.pause();}}
     };
     d.addEventListener('keydown',s.key,true);
   }
@@ -492,6 +493,8 @@
     if(s.audioBridge){try{s.audioBridge.destroy();}catch(_){} s.audioBridge=null;}
     if(w.__xeActiveAudioBridge && (!s || w.__xeActiveAudioBridge.session === s)){w.__xeActiveAudioBridge=null;}
     if(s.statTimer)try{clearInterval(s.statTimer);}catch(_){}
+    if(s.playKickTimer)try{clearInterval(s.playKickTimer);}catch(_){}
+    if(s._onCanPlayKick&&s.video){try{s.video.removeEventListener('canplay',s._onCanPlayKick);s.video.removeEventListener('loadeddata',s._onCanPlayKick);}catch(_){}}
     s.stopped=true;if(s.abort)try{s.abort.abort();}catch(_){ }
     if(s.key)d.removeEventListener('keydown',s.key,true);
     if(s.hls)try{s.hls.destroy();}catch(_){ }
@@ -506,6 +509,7 @@
   // Re-sintoniza el canal cuando el decodificador se queda clavado (sin avanzar)
   // o cuando el búfer se agota sin poder descargar nuevos segmentos.
   var recoverGate=0;
+  var recoverTracker={code:'',count:0,ts:0};
   function recoverLive(s){
     if(!s||s.stopped||playing!==s)return;
     var item=s.rawItem;
@@ -513,13 +517,27 @@
     var now=Date.now();
     if(now-recoverGate<8000)return;
     recoverGate=now;
+    var chKey=String(s.channelCode||(item&&item.channelCode)||s.title||'');
+    if((s._advancedSegs||0)>=2 || recoverTracker.code!==chKey || (now-recoverTracker.ts)>60000){
+      recoverTracker={code:chKey,count:1,ts:now};
+    }else{
+      recoverTracker.count=(recoverTracker.count||0)+1;
+      recoverTracker.ts=now;
+    }
+    if(recoverTracker.count>3){
+      console.warn('[LiveTV] Bucle de re-sintonización detenido tras '+recoverTracker.count+' intentos sin avance');
+      stop();
+      if(w.__onStreamError)w.__onStreamError('No se pudo mantener la señal continua del canal');
+      return;
+    }
     var title=s.title;
-    console.warn('[LiveTV] Señal congelada detectada, re-sintonizando canal…');
+    var hostOffset=recoverTracker.count;
+    console.warn('[LiveTV] Señal congelada detectada, re-sintonizando canal… (intento '+hostOffset+')');
     note(s,'Señal congelada, re-sintonizando…');
     if(s.video){try{s.video.pause();s.video.removeAttribute('src');s.video.load();}catch(_){}}
     stop();
-    prepare(item,true).then(function(info){
-      start(info,{title:title});
+    return prepare(item,true,hostOffset).then(function(info){
+      return start(info,{title:title});
     }).catch(function(e){
       console.warn('[LiveTV] Re-sintonización falló:', errorMessage(e));
       if(w.__onStreamError)w.__onStreamError('Canal no disponible temporalmente');
@@ -538,42 +556,44 @@
     function good(){
       if(finished)return;finished=true;clear(true);
       s.hasStartedPlaying=true;
+      s.rejectStart=null;
       note(s,'● EN VIVO');
       if(w.__onStreamPlaying)w.__onStreamPlaying();
       if(s.statTimer)clearInterval(s.statTimer);
+      var keepTick=0;
       s.statTimer=setInterval(function(){
         if(playing!==s||!s.video||!s.label)return;
+        if(++keepTick>=120){keepTick=0;keepScreenOn();}
         var ct=s.video.currentTime||0;
         var vw=s.video.videoWidth||0, vh=s.video.videoHeight||0;
         var b=s.video.buffered;
         var bufLen=b&&b.length?(b.end(b.length-1)-ct).toFixed(1):'0';
         s.label.hidden=false;
         s.label.textContent='● EN VIVO '+(s.title||'')+' | '+vw+'x'+vh+' | '+ct.toFixed(1)+'s (buf +'+bufLen+'s)';
+        if(s.video.ended || (s.hasStartedPlaying && s.video.paused && !s._userPaused && s.video.readyState<=1)){
+          s._stallTicks=(s._stallTicks||0)+1;
+          if(s._stallTicks>=6){s._stallTicks=0;recoverLive(s);}
+          return;
+        }
         // Detección de congelamiento: reproduciendo pero currentTime no avanza.
         // Cubre tanto decodificador clavado con búfer como búfer agotado sin descarga.
-        if(!s.video.paused && !s.video.seeking && ct>0){
+        if(!s.video.paused && ct>0){
           var hasAhead = !!(b && b.length && (b.end(b.length-1)-ct)>0.5);
           if(typeof s._lastCt==='number' && ct<=s._lastCt+0.05){
             if(hasAhead){
               s._starveTicks=0;
               s._stallTicks=(s._stallTicks||0)+1;
-              if(s._stallTicks===2 || s._stallTicks===5){
+              if(!s.video.seeking && (s._stallTicks===2 || s._stallTicks===5)){
                 try{
-                  var jumped=false;
                   for(var ri=0;ri<b.length;ri++){
                     if(b.start(ri)>ct+0.05 && b.start(ri)<=ct+10){
                       s.video.currentTime=b.start(ri)+0.05;
-                      jumped=true;
                       break;
                     }
                   }
-                  if(!jumped){
-                    var target=Math.min(b.end(b.length-1)-0.1, ct+0.12);
-                    if(target>ct+0.02)s.video.currentTime=target;
-                  }
                   if(s.video.paused)s.video.play().catch(function(){});
                 }catch(_){}
-              }else if(s._stallTicks>=10){
+              }else if(s._stallTicks>=8){
                 s._stallTicks=0; recoverLive(s);
               }
             }else{
@@ -723,7 +743,27 @@
             if(s.stopped||playing!==s||s.ms!==ms)return;
             seq++;
             try{s.video.muted=false;s.video.volume=1;}catch(_){}
-            try{s.video.play().catch(function(){});}catch(_){}
+            var kickLivePlay=function(){
+              if(s.stopped||playing!==s||!s.video)return;
+              try{
+                var lp=s.video.play();
+                if(lp&&lp.catch)lp.catch(function(){try{s.video.muted=true;s.video.play();}catch(_){}});
+              }catch(_){}
+            };
+            s._onCanPlayKick=function(){if(!s.stopped&&playing===s&&s.video&&s.video.paused)kickLivePlay();};
+            try{s.video.addEventListener('canplay',s._onCanPlayKick);s.video.addEventListener('loadeddata',s._onCanPlayKick);}catch(_){}
+            kickLivePlay();
+            var liveKickCount=0;
+            if(s.playKickTimer)try{clearInterval(s.playKickTimer);}catch(_){}
+            s.playKickTimer=setInterval(function(){
+              liveKickCount++;
+              if(s.stopped||playing!==s||s.hasStartedPlaying||!s.video||liveKickCount>16){
+                try{clearInterval(s.playKickTimer);}catch(_){}
+                s.playKickTimer=null;
+                return;
+              }
+              if(s.video.paused)kickLivePlay();
+            },450);
             function liveStep(){
               if(s.stopped||playing!==s||s.ms!==ms)return;
               refresh(s).then(function(info){
@@ -795,6 +835,8 @@
                     return appChunk.then(function(){
                       done[key]=true;if(uri)doneUri[uri]=true;
                       if(key>segno)segno=key;
+                      s._advancedSegs=(s._advancedSegs||0)+1;
+                      if(s._advancedSegs>=2){recoverTracker.count=0;}
                       seq++;
                       if(s.segCache)delete s.segCache[key];
                       return trim(vb,s.video.currentTime).then(function(){
@@ -1210,7 +1252,7 @@
         w.__xeActiveAudioBridge = null;
       }
       var h=new w.Hls({loader:LiveLoader,enableWorker:false,lowLatencyMode:false,
-        maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:20,liveSyncDurationCount:6,
+        maxBufferLength:isModern?60:20,maxMaxBufferLength:isModern?120:35,backBufferLength:isModern?20:8,liveSyncDurationCount:6,
         liveMaxLatencyDurationCount:16,maxLiveSyncPlaybackRate:1.0,manifestLoadingTimeOut:12000,
         manifestLoadingMaxRetry:2,manifestLoadingRetryDelay:400,fragLoadingTimeOut:15000,
         fragLoadingMaxRetry:2,fragLoadingRetryDelay:400,nudgeOffset:0.1,nudgeMaxRetry:5,
@@ -1270,6 +1312,11 @@
       });
       h.on(w.Hls.Events.FRAG_PARSED,function(ev,data){
         fragNetErrs=0;
+        if(data&&data.frag&&data.frag.sn!==s._lastParsedSn){
+          s._lastParsedSn=data.frag.sn;
+          s._advancedSegs=(s._advancedSegs||0)+1;
+          if(s._advancedSegs>=3){recoverTracker.count=0;}
+        }
         var es=data&&data.frag&&data.frag.elementaryStreams;
         var aInfo=es&&es.audio?(es.audio.startPTS.toFixed(1)+'-'+es.audio.endPTS.toFixed(1)):'noA';
         var vInfo=es&&es.video?(es.video.startPTS.toFixed(1)+'-'+es.video.endPTS.toFixed(1)):'noV';
@@ -1286,31 +1333,40 @@
       h.attachMedia(s.video);
     });
   }
-  function refreshWithSelfHeal(s){
+  function renewSessionAndRefresh(s,firstErr){
+    if(s.stopped||playing!==s)return Promise.reject(firstErr||Error('Sintonización cancelada'));
+    note(s,'Renovando señal del canal…');
+    return direct.connect().then(function(c){
+      var liveProm=s.channelCode?c.live.getLiveData({columnId:76182}).catch(function(){return null;}):Promise.resolve(null);
+      return Promise.all([liveProm,c.stream.getSlbInfo({forceRefresh:true})]).then(function(res){
+        if(s.stopped||playing!==s)throw (firstErr||Error('Sintonización cancelada'));
+        var liveData=res[0],slb=res[1],freshItem=null;
+        if(liveData&&Array.isArray(liveData.channelList)&&s.channelCode){
+          for(var i=0;i<liveData.channelList.length;i++){
+            if(liveData.channelList[i].channelCode===s.channelCode){freshItem=liveData.channelList[i];break;}
+          }
+        }
+        if(freshItem&&freshItem.liveAddressList&&freshItem.liveAddressList.length){
+          s.rawItem=freshItem;
+          s.session=c.stream.createCflSession('live',freshItem,slb);
+        }else if(s.rawItem){
+          s.session=c.stream.createCflSession('live',s.rawItem,slb);
+        }
+        resetSegmentState(s);
+        s._rotCount=0;
+        return refresh(s,{allowJump:true});
+      });
+    }).catch(function(err){throw (firstErr||err);});
+  }
+  function refreshWithSelfHeal(s,forceRenew){
+    if(forceRenew){
+      return renewSessionAndRefresh(s,Error('Renovación de señal solicitada'));
+    }
     return refresh(s).catch(function(firstErr){
-      if(s.stopped||playing!==s)throw firstErr;
-      note(s,'Renovando señal del canal…');
-      return direct.connect().then(function(c){
-        var liveProm=s.channelCode?c.live.getLiveData({columnId:76182}).catch(function(){return null;}):Promise.resolve(null);
-        return Promise.all([liveProm,c.stream.getSlbInfo({forceRefresh:true})]).then(function(res){
-          if(s.stopped||playing!==s)throw firstErr;
-          var liveData=res[0],slb=res[1],freshItem=null;
-          if(liveData&&Array.isArray(liveData.channelList)&&s.channelCode){
-            for(var i=0;i<liveData.channelList.length;i++){
-              if(liveData.channelList[i].channelCode===s.channelCode){freshItem=liveData.channelList[i];break;}
-            }
-          }
-          if(freshItem&&freshItem.liveAddressList&&freshItem.liveAddressList.length){
-            s.session=c.stream.createCflSession('live',freshItem,slb);
-          }else if(s.rawItem){
-            s.session=c.stream.createCflSession('live',s.rawItem,slb);
-          }
-          return refresh(s);
-        });
-      }).catch(function(){throw firstErr;});
+      return renewSessionAndRefresh(s,firstErr);
     });
   }
-  function fetchFirstSegment(s,info,triedRot){
+  function fetchFirstSegment(s,info,rotCount,renewedOnce){
     var chunks=info&&info.chunks||[];
     var startIdx=chunks.length>6?chunks.length-6:(chunks.length>3?chunks.length-3:0);
     if(!chunks[startIdx])return Promise.reject(Error('El canal no entregó segmentos disponibles.'));
@@ -1318,17 +1374,26 @@
     if(chunks[startIdx+1])candidates.push(startIdx+1);
     if(chunks[startIdx+2])candidates.push(startIdx+2);
     if(startIdx>0&&chunks[startIdx-1])candidates.push(startIdx-1);
+    if(startIdx>1&&chunks[startIdx-2])candidates.push(startIdx-2);
+    if(startIdx>2&&chunks[startIdx-3])candidates.push(startIdx-3);
+    var maxRots=Math.max(1,((s.session&&s.session.hostCount)||1)-1);
+    var curRot=typeof rotCount==='number'?rotCount:(rotCount?1:0);
     function tryIdx(ci){
       if(ci>=candidates.length){
-        if(!triedRot&&tryRotateCdnHost(s,'start-404')){
+        if(curRot<maxRots&&tryRotateCdnHost(s,'start-404')){
           return refresh(s,{hostRotated:true,allowJump:true}).then(function(nextInfo){
-            return fetchFirstSegment(s,nextInfo,true);
+            return fetchFirstSegment(s,nextInfo,curRot+1,renewedOnce);
+          });
+        }
+        if(!renewedOnce){
+          return refreshWithSelfHeal(s,true).then(function(freshInfo){
+            return fetchFirstSegment(s,freshInfo,0,true);
           });
         }
         return Promise.reject(Error('El CDN no entregó el fragmento inicial.'));
       }
       var idx=candidates[ci],chunk=chunks[idx];
-      return getSegment(s,chunk.seq).then(function(bytes){
+      return getSegment(s,chunk.seq,true).then(function(bytes){
         return {bytes:bytes,chunks:chunks,startIdx:idx,first:chunk};
       }).catch(function(err){
         if(err&&(err.name==='AbortError'||playing!==s||s.stopped))throw err;
@@ -1340,13 +1405,13 @@
   function start(s,opt){
     stop();keepScreenOn();playing=s;s.abort=new AbortController();s.map={};s.stopped=false;
     s.segCache=Object.create(null);s.segOrder=[];s.segFail=Object.create(null);s.uriToSeq=Object.create(null);s.nextSeq=1000;
-    s.lastM3uSeq=null;s.originJumpCount=0;s.consecSegFail=0;s.consecManFail=0;s._rotCount=0;
+    s.lastM3uSeq=null;s.originJumpCount=0;s.consecSegFail=0;s.consecManFail=0;s._rotCount=0;s._advancedSegs=0;
     s.title=(opt&&opt.title)||s.title||'TV en vivo';
     s._lastCt=null;s._stallTicks=0;s._starveTicks=0;
     render(s,s.title);
     note(s,'Conectando con el canal real…');
-    return refreshWithSelfHeal(s).then(function(info){
-      return fetchFirstSegment(s,info,false).then(function(picked){
+    return refreshWithSelfHeal(s,false).then(function(info){
+      return fetchFirstSegment(s,info,0,false).then(function(picked){
         if(playing!==s)throw Error('Sintonización cancelada.');
         var bytes=picked.bytes,chunks=picked.chunks,startIdx=picked.startIdx,first=picked.first;
         var result=null,finalBytes=bytes,finalSeq=first.seq;
@@ -1384,7 +1449,7 @@
       });
     }).catch(function(err){if(s.stopped||playing!==s||(err&&err.name==='AbortError'))return;var message=errorMessage(err);console.error('[LiveTV start err]',message);stop();if(w.__onStreamError)w.__onStreamError(message);throw Error('TV en vivo: '+message);});
   }
-  function prepare(item,forceFreshSlb){
+  function prepare(item,forceFreshSlb,hostOffset){
     if(!isLive(item))return Promise.reject(Error('Este elemento no contiene una transmisión en vivo.'));
     return direct.connect().then(function(c){
       if(!c.stream||typeof c.stream.getSlbInfo!=='function'||typeof c.stream.createCflSession!=='function')
@@ -1392,6 +1457,10 @@
       return c.stream.getSlbInfo({forceRefresh:!!forceFreshSlb}).then(function(slb){
         var session=c.stream.createCflSession('live',item,slb);
         if(!session||!session.manifestRequest||!session.segmentRequest)throw Error('El proveedor no concedió una sesión multimedia utilizable.');
+        if(hostOffset&&typeof session.rotateHost==='function'&&session.hostCount>1){
+          var steps=hostOffset%session.hostCount;
+          for(var ro=0;ro<steps;ro++){session.rotateHost();}
+        }
         return {session:session,map:{},title:item.name||item.title||'TV en vivo',channelCode:item.channelCode||'',rawItem:item};
       });
     });

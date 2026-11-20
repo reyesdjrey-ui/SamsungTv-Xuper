@@ -2,8 +2,8 @@
 (function (w, d) {
   "use strict";
 
-  var BASE_REV = 15;
-  var BASE_VERSION = "3.0.3";
+  var BASE_REV = 16;
+  var BASE_VERSION = "3.0.4";
   var OTA_MIRRORS = [
     "https://cdn.jsdelivr.net/gh/reyesdjrey-ui/SamsungTv-Xuper@main/ota/tizen3/",
     "https://reyesdjrey-ui.github.io/SamsungTv-Xuper/ota/tizen3/"
