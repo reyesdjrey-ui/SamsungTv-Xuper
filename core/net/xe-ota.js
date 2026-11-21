@@ -2,11 +2,11 @@
 (function (w, d) {
   "use strict";
 
-  var BASE_REV = 17;
+  var BASE_REV = 18;
   var BASE_VERSION = "3.0.4-beta";
   var OTA_MIRRORS = [
-    "https://raw.githubusercontent.com/reyesdjrey-ui/SamsungTv-Xuper/beta/ota/beta/",
-    "https://cdn.jsdelivr.net/gh/reyesdjrey-ui/SamsungTv-Xuper@beta/ota/beta/"
+    "https://cdn.jsdelivr.net/gh/reyesdjrey-ui/SamsungTv-Xuper@beta/ota/beta/",
+    "https://raw.githubusercontent.com/reyesdjrey-ui/SamsungTv-Xuper/beta/ota/beta/"
   ];
   var OTA_BASE_URL = OTA_MIRRORS[0];
   var MANIFEST_URL = OTA_BASE_URL + "manifest.json";
