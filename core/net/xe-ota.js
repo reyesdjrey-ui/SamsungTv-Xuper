@@ -2,16 +2,16 @@
 (function (w, d) {
   "use strict";
 
-  var BASE_REV = 14;
-  var BASE_VERSION = "3.0.3";
+  var BASE_REV = 15;
+  var BASE_VERSION = "3.0.4";
   var OTA_BASE_URL = "https://reyesdjrey-ui.github.io/SamsungTv-Xuper/ota/";
   var MANIFEST_URL = OTA_BASE_URL + "manifest.json";
   var OTA_SALT = "EcLex_0TA_Sh13ld_#2026_S4msungTv_Xup3r";
   var DB_NAME = "xuper_ota_v1";
   var STORE_NAME = "bundles";
   var BOOT_KEY = "xuper.ota.boot_state";
-  var MANIFEST_TIMEOUT_MS = 2200;
-  var BUNDLE_TIMEOUT_MS = 5500;
+  var MANIFEST_TIMEOUT_MS = 3500;
+  var BUNDLE_TIMEOUT_MS = 12000;
 
   var MODULES = [
     "core/net/xe-env.js",

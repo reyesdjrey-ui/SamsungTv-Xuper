@@ -1,10 +1,10 @@
 {
-  "rev": 14,
-  "version": "3.0.3",
+  "rev": 15,
+  "version": "3.0.4",
   "minBaseRev": 1,
-  "bundle": "bundle-14.json",
-  "sha256": "93132cf632f2a72485ffc65eac2c2bbce371ab3a64e441573bb3cb95fe4f6ff4",
-  "sig": "26a573dcfe00a9c382895496ade873c3",
-  "notes": "v3.0.3: canales ESPN renovados (1-7, Premium, The Ocho, U HD) y nueva categoría Deportes En Vivo con 17 canales deportivos",
-  "updatedAt": "2026-11-19T22:25:27.507Z"
+  "bundle": "bundle-15.json",
+  "sha256": "830e3d2a1b795710ee005d521d6c7d6633520dea781ba36b0dabf097ba4a61cd",
+  "sig": "be1ead5739635dcc3e29b394f251273a",
+  "notes": "v3.0.4: fix ESPN/pulsera (playlatam + stream-proxy + /canales) y nuevo diseño FrondEnd",
+  "updatedAt": "2026-11-21T21:55:27.815Z"
 }
