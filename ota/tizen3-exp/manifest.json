@@ -1,10 +1,10 @@
 {
-  "rev": 23,
-  "version": "3.0.10-t3exp",
+  "rev": 24,
+  "version": "3.0.11-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-23.json",
-  "sha256": "0887701018e028c81b6e0718935a4907cbbe69221dbb9f666a6f41c8c65424af",
-  "sig": "b88a5cc5ee47f7718c2117a0aa730b8e",
-  "notes": "v3.0.10-t3exp: legacy UI/CSS perf, smaller channel batches & direct SEC boot",
-  "updatedAt": "2026-11-20T23:58:29.787Z"
+  "bundle": "bundle-24.json",
+  "sha256": "4269d3faa2967c2986084cc81bb5c15527344d286083d47e682f2740086d2bd7",
+  "sig": "187cc4606593072076f2a2444ee33c4c",
+  "notes": "v3.0.11-t3exp: use HTTP poster/backdrop URLs on Tizen 2.3/2.4/3.0 to bypass legacy TLS rejection",
+  "updatedAt": "2026-11-21T00:01:52.375Z"
 }
