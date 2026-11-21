@@ -1,10 +1,10 @@
 {
-  "rev": 26,
-  "version": "3.0.13-t3exp",
+  "rev": 27,
+  "version": "3.0.14-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-26.json",
-  "sha256": "3a909c3e12d3a09fc71f781721342c5c9784b5d4d53f5d5fe02e66c3a1f2b85d",
-  "sig": "e32c28d09dafa42ab2b15dd94ce9472b",
-  "notes": "v3.0.13-t3exp: fix infinite channel category loading guard & faster liveChannels fallback",
-  "updatedAt": "2026-11-21T00:36:20.866Z"
+  "bundle": "bundle-27.json",
+  "sha256": "4062913fa12b8ea4abdae8fb24710e8cfc4a4c9a9006e617192b36684506a7db",
+  "sig": "815664cb29d07d8601bdbbb500055fea",
+  "notes": "v3.0.14-t3exp: HTTP OTA mirror for Tizen 2.3/2.4",
+  "updatedAt": "2026-11-21T00:40:53.164Z"
 }
