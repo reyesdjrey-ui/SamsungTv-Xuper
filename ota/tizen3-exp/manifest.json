@@ -1,10 +1,10 @@
 {
-  "rev": 32,
-  "version": "3.0.19-t3exp",
+  "rev": 33,
+  "version": "3.0.20-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-32.json",
-  "sha256": "290f25f3778f111eead12eda47eae78a19c4bdcb133fe46c463d492f594d86b9",
-  "sig": "89cbc4081315b32fa5839a4027297c07",
-  "notes": "Tizen 2.x/3.x HTTP directo + reporte directo del fallo MSE sin bloqueo por sonda AVPlay",
-  "updatedAt": "2026-11-21T04:27:56.754Z"
+  "bundle": "bundle-33.json",
+  "sha256": "787bd5a8ca72329a165a2d20c39a9832af2034c65f5524857e5a9b6ed1dcd89f",
+  "sig": "175e56c01f7ef2cd0427b8ab8314ddc5",
+  "notes": "Diagnostico de ruta SLB, client_ip, Server header y cuerpo HTTP 403",
+  "updatedAt": "2026-11-21T04:35:34.077Z"
 }
