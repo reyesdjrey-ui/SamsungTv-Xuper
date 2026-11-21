@@ -1,10 +1,10 @@
 {
-  "rev": 29,
-  "version": "3.0.16-t3exp",
+  "rev": 30,
+  "version": "3.0.17-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-29.json",
-  "sha256": "c4e080c2ce1651ad8173b0a815a560f939dd599747002584beb297358ce8bfd5",
-  "sig": "c58724d3420066a8abf6b7dd5d5f979d",
-  "notes": "v3.0.16-t3exp: direct hardware AVPlay live playback on Tizen 2.x + fallback from MSE",
-  "updatedAt": "2026-11-21T01:29:24.339Z"
+  "bundle": "bundle-30.json",
+  "sha256": "a17eaf4ca129471fef8e59dc81d7fc0353656f7b96c031e71e9a598e682314ab",
+  "sig": "520696c50b1b0a3dda2d4be231074161",
+  "notes": "v3.0.17-t3exp: fast SEC fallback on aaa100083 loop & faster extraPortalCols cap",
+  "updatedAt": "2026-11-21T03:41:09.223Z"
 }
