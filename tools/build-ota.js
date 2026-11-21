@@ -6,20 +6,22 @@ const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
-const otaDir = path.join(rootDir, 'ota');
 const secretFile = path.resolve(rootDir, '../../tools/.ota-secret');
+
+const args = process.argv.slice(2);
+function getArg(name) {
+  const i = args.indexOf(name);
+  return (i >= 0 && i + 1 < args.length) ? args[i + 1] : null;
+}
+
+const outDirArg = getArg('--out-dir');
+const otaDir = outDirArg ? path.resolve(rootDir, outDirArg) : path.join(rootDir, 'ota');
 const manifestPath = path.join(otaDir, 'manifest.json');
 
 const OTA_SALT = (process.env.OTA_SALT || (fs.existsSync(secretFile) ? fs.readFileSync(secretFile, 'utf8') : '')).trim();
 if (!OTA_SALT) {
   console.error('Falta OTA_SALT (en variable de entorno OTA_SALT o archivo .ota-secret).');
   process.exit(1);
-}
-
-const args = process.argv.slice(2);
-function getArg(name) {
-  const i = args.indexOf(name);
-  return (i >= 0 && i + 1 < args.length) ? args[i + 1] : null;
 }
 
 let prevRev = 1;

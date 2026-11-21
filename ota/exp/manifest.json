@@ -1,0 +1,10 @@
+{
+  "rev": 15,
+  "version": "3.0.3-exp-ota15",
+  "minBaseRev": 1,
+  "bundle": "bundle-15.json",
+  "sha256": "e24a8f957fb1c178cc8d032fdbb82115cee09b906137eb421ac31dbb04071f15",
+  "sig": "5034a8e0eb242e982da18fa8d6858037",
+  "notes": "exp(tizen4-10) rev 15: fix ESPN/pulsera (playlatam + stream-proxy + /canales) + 3.0.3-FrondEnd",
+  "updatedAt": "2026-11-21T21:43:16.768Z"
+}

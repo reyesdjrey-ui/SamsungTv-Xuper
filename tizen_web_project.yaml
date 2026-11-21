@@ -224,6 +224,12 @@ files:
   - store/xe-m3u-index.js
   - store/xe-runtime-cfg.js
   - store/xe-vod-index.js
+  - styles/fonts/figtree-latin-500.woff2
+  - styles/fonts/figtree-latin-600.woff2
+  - styles/fonts/figtree-latin-700.woff2
+  - styles/fonts/figtree-latin-ext-500.woff2
+  - styles/fonts/figtree-latin-ext-600.woff2
+  - styles/fonts/figtree-latin-ext-700.woff2
   - styles/xe-theme.css
 
 # list of files to exclude based on the matched patterns
