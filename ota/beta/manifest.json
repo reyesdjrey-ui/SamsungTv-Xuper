@@ -1,10 +1,10 @@
 {
-  "rev": 18,
+  "rev": 19,
   "version": "3.0.4-beta",
   "minBaseRev": 1,
-  "bundle": "bundle-18.json",
-  "sha256": "2100f7fdcd8e9e987e720ca5c4e90920ba658c5b69150c18e64b4e4f37171310",
-  "sig": "191517edd23eae4a3de3ce9d7fadb0a3",
-  "notes": "beta(tizen3) rev 18: jsDelivr primero para WebKit 538.1 + fix ESPN/pulsera + FrondEnd UI",
-  "updatedAt": "2026-11-21T22:38:20.426Z"
+  "bundle": "bundle-19.json",
+  "sha256": "0987b09559eb56e613d9751b2b0b9bf7651c934b98e8ff5dd91a92d488009bb4",
+  "sig": "f12e4be1772f992bfdfa7b911b6a95f1",
+  "notes": "beta(tizen3) rev 19: tizen3-stream-relay envolviendo pages.dev/stream-proxy y tizenxuper-tv epic-channels.json",
+  "updatedAt": "2026-11-21T22:53:12.794Z"
 }

@@ -2,7 +2,7 @@
 (function (w, d) {
   "use strict";
 
-  var BASE_REV = 18;
+  var BASE_REV = 19;
   var BASE_VERSION = "3.0.4-beta";
   var OTA_MIRRORS = [
     "https://cdn.jsdelivr.net/gh/reyesdjrey-ui/SamsungTv-Xuper@beta/ota/beta/",

@@ -512,8 +512,8 @@
     var FALLBACK_PULSERA = '14940f62.gente.1794265432.09cc2c3cae6f0ee370aa074bd28b68644471ce22fb58eb9866061b30ec6ae953';
     var EPIC_TOKEN_KEY = 'xuper_epic_pulsera_v2';
     var EPIC_LLAVE = '7hA4oMy1vmGSFJjbrAWx-xneFQEY_PAq';
-    var EPIC_CHANNELS_JSON = 'https://tizenxuper-img.pages.dev/data/epic-channels.json';
-    var EPIC_CHANNELS_JSON_FALLBACK = 'https://tizenxuper-tv.pages.dev/data/epic-channels.json';
+    var EPIC_CHANNELS_JSON = 'https://tizenxuper-tv.pages.dev/data/epic-channels.json';
+    var EPIC_CHANNELS_JSON_FALLBACK = 'https://tizenxuper-img.pages.dev/data/epic-channels.json';
     var EPIC_CANALES_URL = 'https://playlatam.site/canales';
     var EPIC_PULSERA_URL = 'https://playlatam.site/iphone/pulsera';
     var EPIC_STREAM_PROXY = 'https://tizenxuper-tv.pages.dev/stream-proxy';
@@ -549,9 +549,16 @@
 
     function buildEpicStreamProxyUrl(rawUrl) {
       var u = String(rawUrl || '').trim();
-      if (!u || isEpicStreamProxyUrl(u)) return u;
-      var baseProxy = isTizen3Device() ? TIZEN3_STREAM_PROXY : EPIC_STREAM_PROXY;
-      return baseProxy + '?cv=2&url=' + encodeURIComponent(u) + '&pulsera=1';
+      if (!u) return u;
+      if (/tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream/i.test(u)) return u;
+      var normU = u.replace(/^https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
+      var pagesProxy = /tizenxuper-tv\.pages\.dev\/stream-proxy/i.test(normU)
+        ? normU
+        : (EPIC_STREAM_PROXY + '?cv=2&url=' + encodeURIComponent(normU) + '&pulsera=1');
+      if (isTizen3Device()) {
+        return TIZEN3_STREAM_PROXY + '?url=' + encodeURIComponent(pagesProxy);
+      }
+      return pagesProxy;
     }
 
     function isPortalCredExpired() {
@@ -3124,8 +3131,8 @@
             var rHdrs = resolved.headers ? Object.assign({}, resolved.headers) : {};
             var rWrappedMap = {};
             var isPulseraResolved = pulseraRe.test(rUrl) || !!resolved.isPulsera;
-            if (isPulseraResolved && rUrl.indexOf('playlatam.site/perelman/') !== -1) {
-              rUrl = rUrl.replace(/https?:\/\/playlatam\.site/i, 'https://epictvparaiphone.top');
+            if (isPulseraResolved && rUrl.indexOf('epictvparaiphone.top/perelman/') !== -1) {
+              rUrl = rUrl.replace(/https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
               if (!/\.m3u8($|\?)/i.test(rUrl)) rUrl += '.m3u8';
             }
             return verifyMenuManifest(rUrl, rHdrs).then(function (vRes) {
@@ -3139,8 +3146,8 @@
                 var bUrl = String((bCand && typeof bCand === 'object') ? (bCand.url || '') : (bCand || '')).trim();
                 if (!/^https?:\/\//i.test(bUrl)) continue;
                 bUrl = bUrl.replace(/#mpegurl$/i, '').replace(/^(https:\/\/[^\/]+):443(\/|$)/i, '$1$2');
-                if (bUrl.indexOf('playlatam.site/perelman/') !== -1) {
-                  bUrl = bUrl.replace(/https?:\/\/playlatam\.site/i, 'https://epictvparaiphone.top');
+                if (bUrl.indexOf('epictvparaiphone.top/perelman/') !== -1) {
+                  bUrl = bUrl.replace(/https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
                   if (!/\.m3u8($|\?)/i.test(bUrl)) bUrl += '.m3u8';
                 }
                 if (isEpicStreamProxyUrl(rUrl) && /epictvparaiphone\.top|playlatam\.site/i.test(bUrl)) {
