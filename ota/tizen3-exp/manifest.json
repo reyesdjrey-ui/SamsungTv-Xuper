@@ -1,10 +1,10 @@
 {
-  "rev": 24,
-  "version": "3.0.11-t3exp",
+  "rev": 25,
+  "version": "3.0.12-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-24.json",
-  "sha256": "4269d3faa2967c2986084cc81bb5c15527344d286083d47e682f2740086d2bd7",
-  "sig": "187cc4606593072076f2a2444ee33c4c",
-  "notes": "v3.0.11-t3exp: use HTTP poster/backdrop URLs on Tizen 2.3/2.4/3.0 to bypass legacy TLS rejection",
-  "updatedAt": "2026-11-21T00:01:52.375Z"
+  "bundle": "bundle-25.json",
+  "sha256": "c97fea1d9ba4571fde20173c5d411b6369d4e00feeaf19065a8e1aff332ad20e",
+  "sig": "639659bba05f1e7d5b83f08beb473060",
+  "notes": "v3.0.12-t3exp: force HTTP image URLs in L(e) for fallback/local catalogs on Tizen 2.3/2.4/3.0",
+  "updatedAt": "2026-11-21T00:19:46.289Z"
 }
