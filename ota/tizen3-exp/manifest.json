@@ -1,10 +1,10 @@
 {
-  "rev": 34,
-  "version": "3.0.21-t3exp",
+  "rev": 35,
+  "version": "3.0.22-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-34.json",
-  "sha256": "6163cc39ecb2853c45ad238a634938708ddb022e7c19e4a0fbba9e0447712f6e",
-  "sig": "8ad67b72e371b161713416f6ba7d6000",
-  "notes": "Loader/estado visible en WebKit 2.3/2.4 y aviso claro ante bloqueo Fortinet Secure DNS",
-  "updatedAt": "2026-11-21T04:46:46.034Z"
+  "bundle": "bundle-35.json",
+  "sha256": "355f3496904e90e00aea63d800bb9643d9e4521a46c31be1810e68a60858a002",
+  "sig": "32d3919a2d2199e29bd64e12bed005af",
+  "notes": "Fix BinaryBuffer.subarray WebKit 2.3, MSE directo sin espera AVPlay, anti-rollback OTA",
+  "updatedAt": "2026-11-21T05:08:12.625Z"
 }
