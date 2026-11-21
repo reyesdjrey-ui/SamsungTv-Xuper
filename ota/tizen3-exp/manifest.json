@@ -1,10 +1,10 @@
 {
-  "rev": 28,
-  "version": "3.0.15-t3exp",
+  "rev": 29,
+  "version": "3.0.16-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-28.json",
-  "sha256": "0820e0456a365fcf5cee3b991991c9402b2812ed8cc5bc709600534bdbbe0503",
-  "sig": "abd2a2e1350b544e7fbff7abac3813c5",
-  "notes": "v3.0.15-t3exp: diag key priority & circular error detail",
-  "updatedAt": "2026-11-21T00:54:21.536Z"
+  "bundle": "bundle-29.json",
+  "sha256": "c4e080c2ce1651ad8173b0a815a560f939dd599747002584beb297358ce8bfd5",
+  "sig": "c58724d3420066a8abf6b7dd5d5f979d",
+  "notes": "v3.0.16-t3exp: direct hardware AVPlay live playback on Tizen 2.x + fallback from MSE",
+  "updatedAt": "2026-11-21T01:29:24.339Z"
 }
