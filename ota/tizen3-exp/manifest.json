@@ -1,10 +1,10 @@
 {
-  "rev": 30,
-  "version": "3.0.17-t3exp",
+  "rev": 31,
+  "version": "3.0.18-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-30.json",
-  "sha256": "a17eaf4ca129471fef8e59dc81d7fc0353656f7b96c031e71e9a598e682314ab",
-  "sig": "520696c50b1b0a3dda2d4be231074161",
-  "notes": "v3.0.17-t3exp: fast SEC fallback on aaa100083 loop & faster extraPortalCols cap",
-  "updatedAt": "2026-11-21T03:41:09.223Z"
+  "bundle": "bundle-31.json",
+  "sha256": "8622088cc78a2d310f0905a81a9cc5d993be597537349bd8e41646f9e2aa1752",
+  "sig": "050c192b965d35257c144632f3001933",
+  "notes": "Tizen 2.x/3.x portal HTTP directo para client_ip real y carga rápida de canales",
+  "updatedAt": "2026-11-21T04:11:28.600Z"
 }
