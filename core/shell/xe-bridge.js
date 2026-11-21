@@ -512,9 +512,10 @@
     var FALLBACK_PULSERA = '14940f62.gente.1794265432.09cc2c3cae6f0ee370aa074bd28b68644471ce22fb58eb9866061b30ec6ae953';
     var EPIC_TOKEN_KEY = 'xuper_epic_pulsera_v2';
     var EPIC_LLAVE = '7hA4oMy1vmGSFJjbrAWx-xneFQEY_PAq';
-    var EPIC_CHANNELS_JSON = 'https://tizenxuper-tv.pages.dev/data/epic-channels.json';
-    var EPIC_CANALES_URL = 'https://epictvparaiphone.top/canales';
-    var EPIC_PULSERA_URL = 'https://epictvparaiphone.top/iphone/pulsera';
+    var EPIC_CHANNELS_JSON = 'https://tizenxuper-img.pages.dev/data/epic-channels.json';
+    var EPIC_CHANNELS_JSON_FALLBACK = 'https://tizenxuper-tv.pages.dev/data/epic-channels.json';
+    var EPIC_CANALES_URL = 'https://playlatam.site/canales';
+    var EPIC_PULSERA_URL = 'https://playlatam.site/iphone/pulsera';
     var EPIC_STREAM_PROXY = 'https://tizenxuper-tv.pages.dev/stream-proxy';
     var EPIC_TTL_MS = 20 * 60 * 60 * 1000;
     var EPIC_JSON_TTL_MS = 10 * 60 * 1000;
@@ -841,8 +842,8 @@
       var hdrs = {
         'Accept': 'application/json, text/plain, */*',
         'User-Agent': EPIC_MOBILE_UA,
-        'Referer': 'https://epictvparaiphone.top/iphone/',
-        'Origin': 'https://epictvparaiphone.top',
+        'Referer': 'https://playlatam.site/iphone/',
+        'Origin': 'https://playlatam.site',
         'X-Requested-With': 'XMLHttpRequest'
       };
       return epicFetch(EPIC_PULSERA_URL, 'POST', hdrs, 3500)
@@ -864,23 +865,26 @@
       var u = String(rawUrl || '').trim();
       var baseSlug = String(slug || '').replace(/^pere-|^epic-/, '').replace(/\.m3u8$/i, '');
       if (!u) {
-        return baseSlug ? ('https://epictvparaiphone.top/perelman/' + baseSlug + '.m3u8') : '';
+        return baseSlug ? ('https://playlatam.site/perelman/' + baseSlug + '.m3u8') : '';
       }
       if (u.indexOf('http') === 0) {
         var cleanSlug = u.substring(u.lastIndexOf('/') + 1).replace(/\.m3u8$/i, '') || baseSlug;
         if (u.indexOf('epictvparaiphone.top') !== -1) {
+          u = u.replace(/^https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
+        }
+        if (u.indexOf('playlatam.site') !== -1 || /\/perelman\//i.test(u)) {
           return /\.m3u8($|\?)/i.test(u) ? u : (u + '.m3u8');
         }
-        return cleanSlug ? ('https://epictvparaiphone.top/perelman/' + cleanSlug + '.m3u8') : u;
+        return cleanSlug ? ('https://playlatam.site/perelman/' + cleanSlug + '.m3u8') : u;
       }
       var relSlug = u.substring(u.lastIndexOf('/') + 1).replace(/\.m3u8$/i, '') || baseSlug;
-      return 'https://epictvparaiphone.top/perelman/' + relSlug + '.m3u8';
+      return 'https://playlatam.site/perelman/' + relSlug + '.m3u8';
     }
 
     var EXTRA_PERELMAN_SPORTS = [
-      { channelCode: 'epic-dsportsplus', index: 928, name: 'DSports+', logo: 'https://epictvparaiphone.top/logos/canales/dsports_plus_color.png?v=18', uhd: false, fav: false, now: 'En vivo', next: '', time: 'EN VIVO', url: 'https://epictvparaiphone.top/perelman/dsportsplus.m3u8', streamUrl: 'https://epictvparaiphone.top/perelman/dsportsplus.m3u8', isEpic: true, liveAddressList: [] },
-      { channelCode: 'epic-winsports', index: 929, name: 'Win Sports', logo: 'https://epictvparaiphone.top/logos/canales/win_sports_color.png?v=18', uhd: false, fav: false, now: 'En vivo', next: '', time: 'EN VIVO', url: 'https://epictvparaiphone.top/perelman/winsports.m3u8', streamUrl: 'https://epictvparaiphone.top/perelman/winsports.m3u8', isEpic: true, liveAddressList: [] },
-      { channelCode: 'epic-vixdeportes', index: 930, name: 'ViX Deportes 24/7', logo: 'https://epictvparaiphone.top/logos/canales/vix_deportes_color.png?v=18', uhd: false, fav: false, now: 'En vivo', next: '', time: 'EN VIVO', url: 'https://epictvparaiphone.top/perelman/vixdeportes.m3u8', streamUrl: 'https://epictvparaiphone.top/perelman/vixdeportes.m3u8', isEpic: true, liveAddressList: [] }
+      { channelCode: 'epic-dsportsplus', index: 928, name: 'DSports+', logo: 'https://epictvparaiphone.top/logos/canales/dsports_plus_color.png?v=18', uhd: false, fav: false, now: 'En vivo', next: '', time: 'EN VIVO', url: 'https://playlatam.site/perelman/dsportsplus.m3u8', streamUrl: 'https://playlatam.site/perelman/dsportsplus.m3u8', isEpic: true, liveAddressList: [] },
+      { channelCode: 'epic-winsports', index: 929, name: 'Win Sports', logo: 'https://epictvparaiphone.top/logos/canales/win_sports_color.png?v=18', uhd: false, fav: false, now: 'En vivo', next: '', time: 'EN VIVO', url: 'https://playlatam.site/perelman/winsports.m3u8', streamUrl: 'https://playlatam.site/perelman/winsports.m3u8', isEpic: true, liveAddressList: [] },
+      { channelCode: 'epic-vixdeportes', index: 930, name: 'ViX Deportes 24/7', logo: 'https://epictvparaiphone.top/logos/canales/vix_deportes_color.png?v=18', uhd: false, fav: false, now: 'En vivo', next: '', time: 'EN VIVO', url: 'https://playlatam.site/perelman/vixdeportes.m3u8', streamUrl: 'https://playlatam.site/perelman/vixdeportes.m3u8', isEpic: true, liveAddressList: [] }
     ];
 
     function getEpicSlugFromUrl(u, fallback) {
@@ -924,12 +928,14 @@
             var altUrl = /\.m3u8($|\?)/i.test(String(item.url)) ? String(item.url) : (String(item.url) + '.m3u8');
             if (altUrl !== url) backupList.push(altUrl);
           }
-          var chName = String(item.nombre || item.name || item.title || (statMatch && statMatch.name) || cleanId);
+          var chName = String(item.nombre || item.name || item.title || (statMatch && statMatch.name) || cleanId).replace(/\s*·\s*[^·]+$/, '').trim();
+          var itemCat = String(item.categoryName || item.pais || item.folder || (statMatch && statMatch.folder) || '').trim();
           merged.push({
             channelCode: code,
             index: 901 + i,
             name: chName,
             logo: logo,
+            folder: itemCat,
             uhd: /fhd|uhd|4k/i.test(chName),
             fav: false,
             now: 'En vivo',
@@ -987,7 +993,13 @@
         var hdrs = getEpicAccessHeaders({ 'Accept': 'application/json' });
         return epicFetch(EPIC_CANALES_URL, 'GET', hdrs, 5000)
           .then(function (payload) {
-            var arr = extractEpicArray(payload);
+            var arr = extractEpicArray(payload).filter(function (f) {
+              return f && (
+                f.fuente === 'perelman' ||
+                String(f.id || '').indexOf('pere-') === 0 ||
+                String(f.url || '').indexOf('/perelman/') !== -1
+              ) && typeof f.url === 'string';
+            });
             return saveAndReturn(arr);
           })
           .catch(function () {
@@ -999,10 +1011,23 @@
         .then(function (payload) {
           var arr = extractEpicArray(payload);
           if (arr && arr.length) return saveAndReturn(arr);
-          return fetchFromCanalesDirect();
+          return epicFetch(EPIC_CHANNELS_JSON_FALLBACK, 'GET', { 'Accept': 'application/json' }, 5000)
+            .then(function (fbPayload) {
+              var fbArr = extractEpicArray(fbPayload);
+              if (fbArr && fbArr.length) return saveAndReturn(fbArr);
+              return fetchFromCanalesDirect();
+            });
         })
         .catch(function () {
-          return fetchFromCanalesDirect();
+          return epicFetch(EPIC_CHANNELS_JSON_FALLBACK, 'GET', { 'Accept': 'application/json' }, 5000)
+            .then(function (fbPayload) {
+              var fbArr = extractEpicArray(fbPayload);
+              if (fbArr && fbArr.length) return saveAndReturn(fbArr);
+              return fetchFromCanalesDirect();
+            })
+            .catch(function () {
+              return fetchFromCanalesDirect();
+            });
         });
     }
 
@@ -2428,7 +2453,7 @@
       }
       if (!/^https?:\/\//i.test(u)) return Promise.reject(new Error('URL inválida'));
       if (/\/perelman\/[^/?#]+$/i.test(u) && /playlatam\.site|epictvparaiphone\.top/i.test(u)) {
-        u = u.replace(/^https?:\/\/playlatam\.site/i, 'https://epictvparaiphone.top');
+        u = u.replace(/^https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
         if (!/\.m3u8(\?|#|$)/i.test(u)) u += '.m3u8';
       }
       if (/\.m3u8(\?|#|$)/i.test(u) || isEpicStreamProxyUrl(u)) {

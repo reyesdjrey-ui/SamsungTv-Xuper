@@ -1,0 +1,10 @@
+{
+  "rev": 17,
+  "version": "3.0.4-beta",
+  "minBaseRev": 1,
+  "bundle": "bundle-17.json",
+  "sha256": "3da0ca02bf5325dd22509dc5277f84ac20e58596cbb59ebf9e8432432fc4c8a0",
+  "sig": "8486d4510e2ed5b5fae8652129d64540",
+  "notes": "beta(tizen3) rev 17: fix ESPN/pulsera (playlatam + tizen3-stream-relay + /canales), FrondEnd UI & override CSS OTA",
+  "updatedAt": "2026-11-21T22:32:51.485Z"
+}
