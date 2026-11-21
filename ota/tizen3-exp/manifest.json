@@ -1,10 +1,10 @@
 {
-  "rev": 31,
-  "version": "3.0.18-t3exp",
+  "rev": 32,
+  "version": "3.0.19-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-31.json",
-  "sha256": "8622088cc78a2d310f0905a81a9cc5d993be597537349bd8e41646f9e2aa1752",
-  "sig": "050c192b965d35257c144632f3001933",
-  "notes": "Tizen 2.x/3.x portal HTTP directo para client_ip real y carga rápida de canales",
-  "updatedAt": "2026-11-21T04:11:28.600Z"
+  "bundle": "bundle-32.json",
+  "sha256": "290f25f3778f111eead12eda47eae78a19c4bdcb133fe46c463d492f594d86b9",
+  "sig": "89cbc4081315b32fa5839a4027297c07",
+  "notes": "Tizen 2.x/3.x HTTP directo + reporte directo del fallo MSE sin bloqueo por sonda AVPlay",
+  "updatedAt": "2026-11-21T04:27:56.754Z"
 }
