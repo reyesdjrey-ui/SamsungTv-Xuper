@@ -1,10 +1,10 @@
 {
-  "rev": 15,
-  "version": "3.0.3-exp-ota15",
+  "rev": 16,
+  "version": "3.0.3-exp",
   "minBaseRev": 1,
-  "bundle": "bundle-15.json",
-  "sha256": "e24a8f957fb1c178cc8d032fdbb82115cee09b906137eb421ac31dbb04071f15",
-  "sig": "5034a8e0eb242e982da18fa8d6858037",
-  "notes": "exp(tizen4-10) rev 15: fix ESPN/pulsera (playlatam + stream-proxy + /canales) + 3.0.3-FrondEnd",
-  "updatedAt": "2026-11-21T21:43:16.768Z"
+  "bundle": "bundle-16.json",
+  "sha256": "e9c365718b064fc76406a1cc6147b0cc0a5712f363802299541873db090cbb83",
+  "sig": "2f5a5f889c31c0f872d8b414c186a1c6",
+  "notes": "exp rev 16: fix override CSS OTA en #player-channels (left:0, pills, title) sin subir a 3.0.4",
+  "updatedAt": "2026-11-21T22:06:35.439Z"
 }
