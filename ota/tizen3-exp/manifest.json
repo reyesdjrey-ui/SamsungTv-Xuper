@@ -1,10 +1,10 @@
 {
-  "rev": 25,
-  "version": "3.0.12-t3exp",
+  "rev": 26,
+  "version": "3.0.13-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-25.json",
-  "sha256": "c97fea1d9ba4571fde20173c5d411b6369d4e00feeaf19065a8e1aff332ad20e",
-  "sig": "639659bba05f1e7d5b83f08beb473060",
-  "notes": "v3.0.12-t3exp: force HTTP image URLs in L(e) for fallback/local catalogs on Tizen 2.3/2.4/3.0",
-  "updatedAt": "2026-11-21T00:19:46.289Z"
+  "bundle": "bundle-26.json",
+  "sha256": "3a909c3e12d3a09fc71f781721342c5c9784b5d4d53f5d5fe02e66c3a1f2b85d",
+  "sig": "e32c28d09dafa42ab2b15dd94ce9472b",
+  "notes": "v3.0.13-t3exp: fix infinite channel category loading guard & faster liveChannels fallback",
+  "updatedAt": "2026-11-21T00:36:20.866Z"
 }
