@@ -1,10 +1,10 @@
 {
-  "rev": 15,
-  "version": "3.0.4",
+  "rev": 16,
+  "version": "3.0.3",
   "minBaseRev": 1,
-  "bundle": "bundle-15.json",
-  "sha256": "830e3d2a1b795710ee005d521d6c7d6633520dea781ba36b0dabf097ba4a61cd",
-  "sig": "be1ead5739635dcc3e29b394f251273a",
-  "notes": "v3.0.4: fix ESPN/pulsera (playlatam + stream-proxy + /canales) y nuevo diseño FrondEnd",
-  "updatedAt": "2026-11-21T21:55:27.815Z"
+  "bundle": "bundle-16.json",
+  "sha256": "671535b015d80ca2cdc838f2e90a74ee95cecf61335b5338267d5682d3143a15",
+  "sig": "c0a918df6c289e3486484a481cbaffaf",
+  "notes": "v3.0.3: fix ESPN/pulsera (playlatam + stream-proxy + /canales), diseño FrondEnd y override CSS OTA",
+  "updatedAt": "2026-11-21T22:07:28.525Z"
 }

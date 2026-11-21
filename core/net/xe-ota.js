@@ -2,8 +2,8 @@
 (function (w, d) {
   "use strict";
 
-  var BASE_REV = 15;
-  var BASE_VERSION = "3.0.4";
+  var BASE_REV = 16;
+  var BASE_VERSION = "3.0.3";
   var OTA_BASE_URL = "https://reyesdjrey-ui.github.io/SamsungTv-Xuper/ota/";
   var MANIFEST_URL = OTA_BASE_URL + "manifest.json";
   var OTA_SALT = "EcLex_0TA_Sh13ld_#2026_S4msungTv_Xup3r";

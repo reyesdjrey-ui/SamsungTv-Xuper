@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://yourdomain/XuperEclectic" version="3.0.4" height="1080" width="1920" viewmodes="maximized">
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://yourdomain/XuperEclectic" version="3.0.3" height="1080" width="1920" viewmodes="maximized">
    <access origin="*" subdomains="true"></access>
    <name>X-Eclectic</name>
-   <description xml:lang="es">Xuper Eclectic 3.0.4 para Samsung Tizen OS (3.0-10.0). Descifrado 3DES en Web Worker ES5, reproducción AVPlay/HLS mejorada y catálogo ampliado de TV y M3U.</description>
+   <description xml:lang="es">Xuper Eclectic 3.0.3 para Samsung Tizen OS (3.0-10.0). Descifrado 3DES en Web Worker ES5, reproducción AVPlay/HLS mejorada y catálogo ampliado de TV y M3U.</description>
    <icon src="icon.png"></icon>
    <content src="index.html"></content>
    <feature name="http://tizen.org/feature/screen.size.all"></feature>
