@@ -169,6 +169,73 @@
     return buildSigHeaders(p.host, device);
   }
 
+  function stripSigParams(rawUrl) {
+    return String(rawUrl || "")
+      .replace(/([?&])(t|d|s)=[^&]*/gi, "$1")
+      .replace(/\?&+/g, "?")
+      .replace(/&&+/g, "&")
+      .replace(/[?&]$/, "");
+  }
+
+  function signQueryUrl(rawUrl, scopeKey, device, saltOverride) {
+    if (!rawUrl || !scopeKey) return rawUrl;
+    var salt = saltOverride !== undefined ? String(saltOverride || "") : ((cfg && cfg.RELAY_SALT) || "");
+    var ts = String(nowSynced());
+    var duid = getDuid(device);
+    var sig = md5Hex("eclex:" + ts + ":" + String(scopeKey) + ":" + duid + ":" + salt);
+    var cleaned = stripSigParams(rawUrl);
+    var sep = cleaned.indexOf("?") === -1 ? "?" : "&";
+    return cleaned + sep + "t=" + encodeURIComponent(ts) + "&d=" + encodeURIComponent(duid) + "&s=" + encodeURIComponent(sig);
+  }
+
+  function wrapT3StreamUrl(innerUrl, device) {
+    if (!innerUrl) return innerUrl;
+    var host = extractHost(innerUrl);
+    if (!host) return innerUrl;
+    var ts = String(nowSynced());
+    var duid = getDuid(device);
+    var sig = md5Hex("eclex:" + ts + ":" + host + ":" + duid + ":" + TIZEN3_RELAY_SALT);
+    return (
+      TIZEN3_RELAY_URL + "/stream?url=" + encodeURIComponent(String(innerUrl)) +
+      "&t=" + encodeURIComponent(ts) +
+      "&d=" + encodeURIComponent(duid) +
+      "&s=" + encodeURIComponent(sig)
+    );
+  }
+
+  function refreshT3PlaylatamUrl(rawUrl, device) {
+    var s = String(rawUrl || "");
+    if (!s) return s;
+    if (/tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream\?/i.test(s)) {
+      var mOuter = /[?&]url=([^&]+)/i.exec(s);
+      if (mOuter && mOuter[1]) {
+        var inner = "";
+        try { inner = decodeURIComponent(mOuter[1]); } catch (_) { inner = mOuter[1]; }
+        if (/(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev)\/stream-proxy/i.test(inner)) {
+          var mIn = /[?&]url=([^&]+)/i.exec(inner);
+          var decT = "";
+          if (mIn && mIn[1]) { try { decT = decodeURIComponent(mIn[1]); } catch (_) { decT = mIn[1]; } }
+          var sm = /\/perelman\/([a-zA-Z0-9_-]+?)(?:\.m3u8)?(?:[/?#]|$)/i.exec(decT);
+          if (sm && sm[1]) {
+            inner = signQueryUrl(inner, "playlatam:" + sm[1].toLowerCase(), device);
+          }
+        }
+        return wrapT3StreamUrl(inner, device);
+      }
+      return s;
+    }
+    if (/(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev)\/stream-proxy/i.test(s)) {
+      var mDir = /[?&]url=([^&]+)/i.exec(s);
+      var decDir = "";
+      if (mDir && mDir[1]) { try { decDir = decodeURIComponent(mDir[1]); } catch (_) { decDir = mDir[1]; } }
+      var smDir = /\/perelman\/([a-zA-Z0-9_-]+?)(?:\.m3u8)?(?:[/?#]|$)/i.exec(decDir);
+      if (smDir && smDir[1]) {
+        return signQueryUrl(s, "playlatam:" + smDir[1].toLowerCase(), device);
+      }
+    }
+    return s;
+  }
+
   function wrapPortalRequest(targetUrl, opts, device) {
     opts = opts || {};
     var base = relayBase();
@@ -379,7 +446,11 @@
     isStreamHostBlocked: isStreamHostBlocked,
     markStreamHostBlocked: markStreamHostBlocked,
     wrapPortalRequest: wrapPortalRequest,
+    buildSigHeaders: buildSigHeaders,
     buildSigHeadersForUrl: buildSigHeadersForUrl,
+    signQueryUrl: signQueryUrl,
+    wrapT3StreamUrl: wrapT3StreamUrl,
+    refreshT3PlaylatamUrl: refreshT3PlaylatamUrl,
     wrapMediaRequest: wrapMediaRequest,
     fetchMedia: fetchMedia,
     wrapSubtitleUrl: wrapSubtitleUrl,

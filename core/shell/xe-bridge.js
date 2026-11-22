@@ -512,11 +512,11 @@
     var FALLBACK_PULSERA = '14940f62.gente.1794265432.09cc2c3cae6f0ee370aa074bd28b68644471ce22fb58eb9866061b30ec6ae953';
     var EPIC_TOKEN_KEY = 'xuper_epic_pulsera_v2';
     var EPIC_LLAVE = '7hA4oMy1vmGSFJjbrAWx-xneFQEY_PAq';
-    var EPIC_CHANNELS_JSON = 'https://tizenxuper-tv.pages.dev/data/epic-channels.json';
-    var EPIC_CHANNELS_JSON_FALLBACK = 'https://tizenxuper-img.pages.dev/data/epic-channels.json';
+    var EPIC_CHANNELS_JSON = 'https://api.xupereclectic.xyz/data/epic-channels.json';
+    var EPIC_CHANNELS_JSON_FALLBACK = 'https://tizenxuper-tv.pages.dev/data/epic-channels.json';
     var EPIC_CANALES_URL = 'https://playlatam.site/canales';
     var EPIC_PULSERA_URL = 'https://playlatam.site/iphone/pulsera';
-    var EPIC_STREAM_PROXY = 'https://tizenxuper-tv.pages.dev/stream-proxy';
+    var EPIC_STREAM_PROXY = 'https://api.xupereclectic.xyz/stream-proxy';
     var EPIC_TTL_MS = 20 * 60 * 60 * 1000;
     var EPIC_JSON_TTL_MS = 10 * 60 * 1000;
     var M3U_MEM_CACHE = w.__xeM3uMemCache || (w.__xeM3uMemCache = {});
@@ -544,21 +544,40 @@
     var TIZEN3_STREAM_PROXY = 'http://tizen3-stream-relay.eclecticempire03.workers.dev/stream';
 
     function isEpicStreamProxyUrl(url) {
-      return /tizenxuper-tv\.pages\.dev\/stream-proxy|tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream/i.test(String(url || ''));
+      return /(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev|tizenxuper-tv\.pages\.dev)\/stream-proxy|tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream/i.test(String(url || ''));
+    }
+
+    function extractPerelmanSlugFromUrl(rawUrl) {
+      var m = /\/perelman\/([a-zA-Z0-9_-]+?)(?:\.m3u8)?(?:[/?#]|$)/i.exec(String(rawUrl || ''));
+      return m ? m[1].toLowerCase() : '';
     }
 
     function buildEpicStreamProxyUrl(rawUrl) {
       var u = String(rawUrl || '').trim();
       if (!u) return u;
-      if (/tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream/i.test(u)) return u;
-      var normU = u.replace(/^https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
-      var pagesProxy = /tizenxuper-tv\.pages\.dev\/stream-proxy/i.test(normU)
-        ? normU
-        : (EPIC_STREAM_PROXY + '?cv=2&url=' + encodeURIComponent(normU) + '&pulsera=1');
-      if (isTizen3Device()) {
-        return TIZEN3_STREAM_PROXY + '?url=' + encodeURIComponent(pagesProxy);
+      if (/tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream/i.test(u)) {
+        return (w.XuperRelay && typeof w.XuperRelay.refreshT3PlaylatamUrl === 'function')
+          ? w.XuperRelay.refreshT3PlaylatamUrl(u)
+          : u;
       }
-      return pagesProxy;
+      var normU = u.replace(/^https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
+      var innerProxy;
+      if (/(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev|tizenxuper-tv\.pages\.dev)\/stream-proxy/i.test(normU)) {
+        innerProxy = normU;
+      } else {
+        innerProxy = EPIC_STREAM_PROXY + '?cv=2&url=' + encodeURIComponent(normU);
+        var slug = extractPerelmanSlugFromUrl(normU);
+        if (slug && w.XuperRelay && typeof w.XuperRelay.signQueryUrl === 'function') {
+          innerProxy = w.XuperRelay.signQueryUrl(innerProxy, 'playlatam:' + slug);
+        }
+      }
+      if (isTizen3Device()) {
+        if (w.XuperRelay && typeof w.XuperRelay.wrapT3StreamUrl === 'function') {
+          return w.XuperRelay.wrapT3StreamUrl(innerProxy);
+        }
+        return TIZEN3_STREAM_PROXY + '?url=' + encodeURIComponent(innerProxy);
+      }
+      return innerProxy;
     }
 
     function isPortalCredExpired() {
@@ -1014,7 +1033,11 @@
           });
       };
 
-      return epicFetch(EPIC_CHANNELS_JSON, 'GET', { 'Accept': 'application/json' }, 5000)
+      var channelsJsonUrl = (w.XuperRelay && typeof w.XuperRelay.signQueryUrl === 'function' && /(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev)/i.test(EPIC_CHANNELS_JSON))
+        ? w.XuperRelay.signQueryUrl(EPIC_CHANNELS_JSON, 'playlatam:channels')
+        : EPIC_CHANNELS_JSON;
+
+      return epicFetch(channelsJsonUrl, 'GET', { 'Accept': 'application/json' }, 5000)
         .then(function (payload) {
           var arr = extractEpicArray(payload);
           if (arr && arr.length) return saveAndReturn(arr);
@@ -2915,7 +2938,7 @@
       }
 
       var liveTicket = (w.__xuperLiveResolveTicket = (w.__xuperLiveResolveTicket || 0) + 1);
-      var pulseraRe = /epictvparaiphone\.top|playlatam\.site|tizenxuper-tv\.pages\.dev\/stream-proxy|tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream/i;
+      var pulseraRe = /epictvparaiphone\.top|playlatam\.site|(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev|tizenxuper-tv\.pages\.dev)\/stream-proxy|tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream/i;
       var isEpicMenuItem = !!(menuEntry && menuEntry.isEpicMenu) || /^(epicm-|epic247-|espn-|epic-|portal-)/i.test(String(params.channelCode || ''));
       if (isEpicMenuItem) {
         if (backupCandidates.length > 12) backupCandidates = backupCandidates.slice(0, 12);

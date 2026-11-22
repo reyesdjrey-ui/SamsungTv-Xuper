@@ -630,6 +630,10 @@
     PngStripLoader.prototype.constructor = PngStripLoader;
     var origLoad = BaseLoader.prototype.load;
     PngStripLoader.prototype.load = function(context, config, callbacks) {
+      if (context && context.url && _g.XuperRelay && typeof _g.XuperRelay.refreshT3PlaylatamUrl === 'function' &&
+          /(?:tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream\?|(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev)\/stream-proxy)/i.test(String(context.url))) {
+        context.url = _g.XuperRelay.refreshT3PlaylatamUrl(String(context.url));
+      }
       if (config && config._xeRelayPortal && context && context.url &&
           /^https:\/\/[^\/:]+(\/|$)/i.test(String(context.url)) &&
           _g.XuperRelay && typeof _g.XuperRelay.wrapPortalRequest === 'function') {
@@ -661,7 +665,7 @@
                 var m3uTxt = response.data.replace(/#EXT-X-START:[^\r\n]*(\r?\n)?/g, '');
                 var tdMatch = /#EXT-X-TARGETDURATION:\s*(\d+)/i.exec(m3uTxt);
                 var targetDur = tdMatch ? (parseInt(tdMatch[1], 10) || 5) : 5;
-                var holdBackSec = Math.max(18, targetDur * 3.5);
+                var holdBackSec = Math.max(30, Math.min(36, targetDur * 5.5));
                 var hbStr = holdBackSec.toFixed(1);
                 if (m3uTxt.indexOf('#EXT-X-SERVER-CONTROL:') !== -1) {
                   if (/(^|[,:])HOLD-BACK=[\d.]+/i.test(m3uTxt)) {
@@ -742,7 +746,8 @@
       var useHdrs = overrideHdrs || hdrs;
       var rBase = (_g.XuperRelay && typeof _g.XuperRelay.relayBase === 'function') ? _g.XuperRelay.relayBase() : '';
       var isRelayTarget = /workers\.dev/i.test(uStr) || (rBase && uStr.indexOf(rBase) === 0);
-      if (isRelayTarget) {
+      var isQuerySignedT3Stream = /tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream\?/i.test(uStr) && /[?&]t=/.test(uStr) && /[?&]s=/.test(uStr);
+      if (isRelayTarget && !isQuerySignedT3Stream) {
         if (useHdrs) {
           for (var hk in useHdrs) {
             if (Object.prototype.hasOwnProperty.call(useHdrs, hk) && useHdrs[hk]) {
@@ -764,7 +769,7 @@
             }
           }
         }
-      } else if (useHdrs && /epictvparaiphone\.top|playlatam\.site/i.test(uStr)) {
+      } else if (!isQuerySignedT3Stream && useHdrs && /epictvparaiphone\.top|playlatam\.site/i.test(uStr)) {
         if (useHdrs['X-Cred']) reqH['X-Cred'] = useHdrs['X-Cred'];
         if (useHdrs['X-Pulsera']) reqH['X-Pulsera'] = useHdrs['X-Pulsera'];
       }
@@ -783,9 +788,13 @@
 
     function fetchPlaylist(url) {
       var target = url;
+      if (_g.XuperRelay && typeof _g.XuperRelay.refreshT3PlaylatamUrl === 'function' &&
+          /(?:tizen3-stream-relay\.eclecticempire03\.workers\.dev\/stream\?|(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev)\/stream-proxy)/i.test(String(target || ''))) {
+        target = _g.XuperRelay.refreshT3PlaylatamUrl(String(target));
+      }
       var callHdrs = null;
       var rBase = (_g.XuperRelay && typeof _g.XuperRelay.relayBase === 'function') ? _g.XuperRelay.relayBase() : '';
-      if (rBase && manifestUrl.indexOf(rBase) === 0 && /epictvparaiphone\.top|playlatam\.site/i.test(String(target || ''))) {
+      if (rBase && manifestUrl.indexOf(rBase) === 0 && String(target || '').indexOf(rBase) !== 0 && /epictvparaiphone\.top|playlatam\.site/i.test(String(target || ''))) {
         var wrappedVar = _g.XuperRelay.wrapPortalRequest(target, { headers: hdrs || {} });
         if (wrappedVar && wrappedVar.relayed) {
           target = wrappedVar.url;
