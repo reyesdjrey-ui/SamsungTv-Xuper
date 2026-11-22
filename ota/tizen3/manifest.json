@@ -1,10 +1,10 @@
 {
-  "rev": 17,
+  "rev": 18,
   "version": "3.0.4",
   "minBaseRev": 1,
-  "bundle": "bundle-17.json",
-  "sha256": "31867a5f1aaa8995c76be025f1679101c1cdeab8eed2a2e1ecfd2aa785c36e0a",
-  "sig": "9a7d7110c5256856af077805a5740f44",
-  "notes": "v3.0.4 (Tizen 3.0 rev 17): fix ESPN/pulsera (playlatam + stream-proxy vía tizen3-stream-relay + tizenxuper-tv), diseño FrondEnd y override CSS OTA",
-  "updatedAt": "2026-11-21T23:04:08.795Z"
+  "bundle": "bundle-18.json",
+  "sha256": "600a9eb03b97c11c835781d966795a1ce90846d142ccea45ffcc1dfc20cbb337",
+  "sig": "d6bc6e624eea6beb4f528166042ba8ab",
+  "notes": "v3.0.4 (Tizen 3.0 rev 18): PlayLatam vía tizen3-stream-relay -> api.xupereclectic.xyz + Oracle/Nginx micro-caché, firma dual dinámica sin preflight y colchón HLS anti-cortes",
+  "updatedAt": "2026-11-22T18:36:25.131Z"
 }
