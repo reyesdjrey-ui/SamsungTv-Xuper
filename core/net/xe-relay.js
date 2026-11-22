@@ -159,6 +159,20 @@
     };
   }
 
+  function signQueryUrl(rawUrl, scopeKey, device) {
+    var u = String(rawUrl || "").trim();
+    if (!u || !scopeKey) return u;
+    var clean = u.replace(/([?&])(t|d|s)=[^&]*/gi, "$1").replace(/[?&]+$/, "").replace(/\?&+/, "?").replace(/&&+/g, "&");
+    var sigH = buildSigHeaders(scopeKey, device);
+    var sep = clean.indexOf("?") !== -1 ? "&" : "?";
+    return (
+      clean + sep +
+      "t=" + encodeURIComponent(sigH["X-Eclex-Time"]) +
+      "&d=" + encodeURIComponent(sigH["X-Eclex-Duid"]) +
+      "&s=" + encodeURIComponent(sigH["X-Eclex-Sig"])
+    );
+  }
+
   function wrapPortalRequest(targetUrl, opts, device) {
     opts = opts || {};
     var base = relayBase();
@@ -369,6 +383,8 @@
     isStreamHostBlocked: isStreamHostBlocked,
     markStreamHostBlocked: markStreamHostBlocked,
     wrapPortalRequest: wrapPortalRequest,
+    buildSigHeaders: buildSigHeaders,
+    signQueryUrl: signQueryUrl,
     wrapMediaRequest: wrapMediaRequest,
     fetchMedia: fetchMedia,
     wrapSubtitleUrl: wrapSubtitleUrl,

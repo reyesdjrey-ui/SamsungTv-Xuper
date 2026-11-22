@@ -628,6 +628,15 @@
     PngStripLoader.prototype.constructor = PngStripLoader;
     var origLoad = BaseLoader.prototype.load;
     PngStripLoader.prototype.load = function(context, config, callbacks) {
+      if (context && context.url && /(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev)\/stream-proxy/i.test(String(context.url)) &&
+          _g.XuperRelay && typeof _g.XuperRelay.signQueryUrl === 'function') {
+        var uMatch = /[?&]url=([^&]+)/i.exec(String(context.url));
+        var decTarget = uMatch ? decodeURIComponent(uMatch[1]) : '';
+        var slugM = /\/perelman\/([a-zA-Z0-9_-]+?)(?:\.m3u8)?(?:[/?#]|$)/i.exec(decTarget);
+        if (slugM && slugM[1]) {
+          context.url = _g.XuperRelay.signQueryUrl(String(context.url), 'playlatam:' + slugM[1].toLowerCase());
+        }
+      }
       if (config && config._xeRelayPortal && context && context.url &&
           /^https:\/\/[^\/:]+(\/|$)/i.test(String(context.url)) &&
           _g.XuperRelay && typeof _g.XuperRelay.wrapPortalRequest === 'function') {
@@ -659,7 +668,7 @@
                 var m3uTxt = response.data.replace(/#EXT-X-START:[^\r\n]*(\r?\n)?/g, '');
                 var tdMatch = /#EXT-X-TARGETDURATION:\s*(\d+)/i.exec(m3uTxt);
                 var targetDur = tdMatch ? (parseInt(tdMatch[1], 10) || 5) : 5;
-                var holdBackSec = Math.max(18, targetDur * 3.5);
+                var holdBackSec = Math.max(30, Math.min(36, targetDur * 5.5));
                 var hbStr = holdBackSec.toFixed(1);
                 if (m3uTxt.indexOf('#EXT-X-SERVER-CONTROL:') !== -1) {
                   if (/(^|[,:])HOLD-BACK=[\d.]+/i.test(m3uTxt)) {
