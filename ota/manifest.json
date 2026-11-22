@@ -1,10 +1,10 @@
 {
-  "rev": 16,
-  "version": "3.0.3",
+  "rev": 17,
+  "version": "3.0.4",
   "minBaseRev": 1,
-  "bundle": "bundle-16.json",
-  "sha256": "671535b015d80ca2cdc838f2e90a74ee95cecf61335b5338267d5682d3143a15",
-  "sig": "c0a918df6c289e3486484a481cbaffaf",
-  "notes": "v3.0.3: fix ESPN/pulsera (playlatam + stream-proxy + /canales), diseño FrondEnd y override CSS OTA",
-  "updatedAt": "2026-11-21T22:07:28.525Z"
+  "bundle": "bundle-17.json",
+  "sha256": "033256a311772cb0a128afc22c9bfff377831ec95c0bdc303bc33817d8d4f8c4",
+  "sig": "c1f1c353d466c4a0f17a0a9ec017bdc9",
+  "notes": "v3.0.4: PlayLatam vía api.xupereclectic.xyz + Oracle/Nginx micro-caché, firma HMAC-MD5 sin preflight y colchón HLS anti-cortes",
+  "updatedAt": "2026-11-22T18:25:03.273Z"
 }
