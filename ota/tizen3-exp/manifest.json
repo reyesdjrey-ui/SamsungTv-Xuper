@@ -1,10 +1,10 @@
 {
-  "rev": 37,
-  "version": "3.0.24-t3exp",
+  "rev": 38,
+  "version": "3.0.25-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-37.json",
-  "sha256": "7618c9e684ab2cc94a82df1341756015915c9c22f0624068b8dd02bd623520ad",
-  "sig": "611360057361053fc24db799c9e74c75",
-  "notes": "LiveTV AVPlay audio Tizen 2.3, CSS WebKit r152340 catalogo, posters relay, VOD resume >25s",
-  "updatedAt": "2026-11-23T18:30:16.109Z"
+  "bundle": "bundle-38.json",
+  "sha256": "900b12d47cd37a6a626775352cf7fd3161a67bee91a9880e0b1b78d785e74d5b",
+  "sig": "3e2dc1d349894540fd4b3450919415e8",
+  "notes": "Restaurar audio nativo Hls.js dual-SB en TVs reales Tizen 2.3/2.4, fix DOM Exception 11 y wrapPortalRequest SLB IPv6",
+  "updatedAt": "2026-11-23T23:18:51.557Z"
 }
