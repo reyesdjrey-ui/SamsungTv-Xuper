@@ -1,10 +1,10 @@
 {
-  "rev": 36,
-  "version": "3.0.23-t3exp",
+  "rev": 37,
+  "version": "3.0.24-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-36.json",
-  "sha256": "ae26debf35d03498376335dd77897d335833a89702caa7ebae8bfd5282f02e99",
-  "sig": "1648b3452ac2ac8842d57324544a06db",
-  "notes": "HEVC MSE->AVPlay directo, getSlbInfo DIRECT-http + fallback 403 IPv6, zapping ++avWrapTicket",
-  "updatedAt": "2026-11-23T17:07:39.587Z"
+  "bundle": "bundle-37.json",
+  "sha256": "7618c9e684ab2cc94a82df1341756015915c9c22f0624068b8dd02bd623520ad",
+  "sig": "611360057361053fc24db799c9e74c75",
+  "notes": "LiveTV AVPlay audio Tizen 2.3, CSS WebKit r152340 catalogo, posters relay, VOD resume >25s",
+  "updatedAt": "2026-11-23T18:30:16.109Z"
 }
