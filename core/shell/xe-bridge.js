@@ -103,6 +103,10 @@
     liveChannelsCacheTs = {};
     w.__xePortalCache = null;
     w.__xePortalCacheTs = 0;
+    w.__xeSharedCanalesArr = null;
+    w.__xeSharedCanalesTs = 0;
+    w.__xeEpicRawCache = null;
+    w.__xeEpicRawCacheTs = 0;
     w.__xeEpicCache = null;
     w.__xeEpicMenuCache = null;
     w.__xeEpic247Cache = null;
@@ -506,15 +510,69 @@
     }
 
     // =========================================================================
-    // M3U Addons & Dynamic Sports LATAM (PlayLatam / EpicTV) - Sin bloquear Portal
+    // M3U Addons & Dynamic Sports LATAM (PlayLatam / Epic+ v7.34 v186 Protocol)
     // =========================================================================
-    var DEFAULT_PULSERA = '9d7f743c.gente.1794262627.6c0ed20caa00f079c6628210b1cc8de81e503acf58ab77bc8bcfb536836b75f3';
-    var FALLBACK_PULSERA = '14940f62.gente.1794265432.09cc2c3cae6f0ee370aa074bd28b68644471ce22fb58eb9866061b30ec6ae953';
-    var EPIC_TOKEN_KEY = 'xuper_epic_pulsera_v2';
+    var EPIC_CRED_KEY = 'xuper_epic_cred_v186';
+    var EPIC_ANDROID_SEED_KEY = 'xuper_epic_android_seed_v186';
+    var EPIC_PA_STATE_KEY = 'xuper_epic_pa_state_v1';
+    var EPIC_VER_STORAGE_KEY = 'xuper_epic_app_ver_code';
+    var EPIC_VERSION_CODE = 186;
+
+    function getEpicVersionCode() {
+      if (w.__xeEpicVersionCode && w.__xeEpicVersionCode >= EPIC_VERSION_CODE) {
+        return w.__xeEpicVersionCode;
+      }
+      try {
+        var savedV = parseInt(w.localStorage && w.localStorage.getItem(EPIC_VER_STORAGE_KEY), 10);
+        if (isFinite(savedV) && savedV >= EPIC_VERSION_CODE && savedV < 9999) {
+          w.__xeEpicVersionCode = savedV;
+          return savedV;
+        }
+      } catch (_) {}
+      w.__xeEpicVersionCode = EPIC_VERSION_CODE;
+      return EPIC_VERSION_CODE;
+    }
+
+    function updateEpicVersionFromRemote(verObj) {
+      if (!verObj || typeof verObj !== 'object') return;
+      var c = Math.max(parseInt(verObj.code, 10) || 0, parseInt(verObj.minima, 10) || 0);
+      if (isFinite(c) && c > getEpicVersionCode() && c < 9999) {
+        w.__xeEpicVersionCode = c;
+        try {
+          if (w.localStorage) w.localStorage.setItem(EPIC_VER_STORAGE_KEY, String(c));
+        } catch (_) {}
+      }
+    }
     var EPIC_LLAVE = '7hA4oMy1vmGSFJjbrAWx-xneFQEY_PAq';
+    var EPIC_APK_CERT_SHA256 = '272641302ba4c69e6518b9a620de018f850b5a2553b8d16d5fe7b113a79ba3b9';
+    var EPIC_CRED_MAX_AGE_SEC = 150 * 24 * 3600; // 12960000 s (150 dias de vigencia cliente, z6/f8.java:115)
+    var EPIC_CRED_TTL_SEC = 180 * 24 * 3600;     // 15552000 s (180 dias dura_dias servidor)
+    var EPIC_RENEW_AFTER_SEC = 136 * 24 * 3600;  // Renovar proactivamente 14 dias antes del limite de 150 dias
+    var EPIC_REG_BACKOFF_MS = [60000, 300000, 1800000, 21600000]; // 1m, 5m, 30m, 6h (z6/f8.java)
+    var EPIC_BLACKLISTED_IDS = { '1fe6d1c6': true, 'a1b2c3d4': true };
+    var EPIC_DEVICE_PROFILES = [
+      { m: 'SM-A546E', android: '14', build: 'UP1A.231005.007', dpi: 450, fab: 450, sw: 384, sim: 1, letra: '1.00' },
+      { m: 'SM-S918B', android: '14', build: 'UP1A.231005.007', dpi: 480, fab: 480, sw: 360, sim: 1, letra: '1.00' },
+      { m: 'SM-A346M', android: '13', build: 'TP1A.220624.014', dpi: 450, fab: 450, sw: 384, sim: 1, letra: '1.00' },
+      { m: 'SM-A145M', android: '13', build: 'TP1A.220624.014', dpi: 420, fab: 420, sw: 411, sim: 1, letra: '1.00' },
+      { m: 'SM-G991B', android: '13', build: 'TP1A.220624.014', dpi: 480, fab: 480, sw: 360, sim: 1, letra: '1.00' },
+      { m: 'SM-X200', android: '13', build: 'TP1A.220624.014', dpi: 240, fab: 240, sw: 800, sim: 0, letra: '1.00' },
+      { m: '2201117TG', android: '13', build: 'TKQ1.221114.001', dpi: 440, fab: 440, sw: 392, sim: 1, letra: '1.00' },
+      { m: '23021RAA2Y', android: '13', build: 'TKQ1.221114.001', dpi: 440, fab: 440, sw: 392, sim: 1, letra: '1.00' },
+      { m: '2312DRA50G', android: '14', build: 'UKQ1.231003.002', dpi: 440, fab: 440, sw: 392, sim: 1, letra: '1.00' },
+      { m: 'M2101K6G', android: '13', build: 'TKQ1.221013.002', dpi: 440, fab: 440, sw: 392, sim: 1, letra: '1.15' },
+      { m: 'moto g54 5G', android: '13', build: 'T3TD33.16-78-2', dpi: 400, fab: 400, sw: 432, sim: 1, letra: '1.00' },
+      { m: 'moto g84 5G', android: '14', build: 'U1TC34.22-64-19', dpi: 400, fab: 400, sw: 432, sim: 1, letra: '1.00' },
+      { m: 'motorola edge 40', android: '14', build: 'U1TL34.115-16', dpi: 440, fab: 440, sw: 392, sim: 1, letra: '1.00' },
+      { m: 'Pixel 7', android: '14', build: 'AP1A.240505.004', dpi: 420, fab: 420, sw: 411, sim: 1, letra: '1.00' },
+      { m: 'Pixel 6a', android: '14', build: 'AP2A.240605.024', dpi: 420, fab: 420, sw: 411, sim: 1, letra: '0.90' },
+      { m: 'CPH2449', android: '14', build: 'UKQ1.230924.001', dpi: 480, fab: 480, sw: 412, sim: 1, letra: '1.00' }
+    ];
     var EPIC_CHANNELS_JSON = 'https://api.xupereclectic.xyz/data/epic-channels.json';
     var EPIC_CHANNELS_JSON_FALLBACK = 'https://tizenxuper-tv.pages.dev/data/epic-channels.json';
+    var EPIC_REGISTRAR_URL = 'https://playlatam.site/registrar';
     var EPIC_CANALES_URL = 'https://playlatam.site/canales';
+    var EPIC_MENU_URL = 'https://playlatam.site/menu';
     var EPIC_PULSERA_URL = 'https://playlatam.site/iphone/pulsera';
     var EPIC_STREAM_PROXY = 'https://api.xupereclectic.xyz/stream-proxy';
     var EPIC_TTL_MS = 20 * 60 * 60 * 1000;
@@ -522,23 +580,89 @@
     var M3U_MEM_CACHE = w.__xeM3uMemCache || (w.__xeM3uMemCache = {});
     var M3U_TTL_MS = 12 * 60 * 60 * 1000;
 
-    function isValidPulseraToken(tok) {
-      return typeof tok === 'string' && tok.indexOf('.gente.') !== -1 && tok.length > 24;
+    function getEpicDeviceProfile() {
+      if (w.__xeEpicDevProfile) return w.__xeEpicDevProfile;
+      var id = getPortalAparatoId();
+      var acc = 0;
+      for (var i = 0; i < id.length; i++) {
+        acc = ((acc * 31) + id.charCodeAt(i)) >>> 0;
+      }
+      var base = EPIC_DEVICE_PROFILES[acc % EPIC_DEVICE_PROFILES.length];
+      var prof = {
+        m: base.m,
+        android: base.android,
+        build: base.build,
+        dpi: base.dpi,
+        fab: base.fab,
+        sw: base.sw,
+        sim: base.sim,
+        letra: base.letra,
+        red: 'wifi',
+        ua: 'Dalvik/2.1.0 (Linux; U; Android ' + base.android + '; ' + base.m + ' Build/' + base.build + ')'
+      };
+      w.__xeEpicDevProfile = prof;
+      return prof;
+    }
+
+    function readEpicPaState() {
+      if (w.__xeEpicPaState) return w.__xeEpicPaState;
+      var st = { d: 0, m: 1 };
+      try {
+        var raw = w.localStorage && w.localStorage.getItem(EPIC_PA_STATE_KEY);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.m === 'number' && parsed.m >= 0) {
+            st = { d: 0, m: Math.min(parsed.m, 120) };
+          }
+        } else {
+          var id = getPortalAparatoId();
+          var initM = parseInt(id.slice(0, 2), 16) % 3;
+          st = { d: 0, m: initM };
+          if (w.localStorage) w.localStorage.setItem(EPIC_PA_STATE_KEY, JSON.stringify(st));
+        }
+      } catch (_) {}
+      w.__xeEpicPaState = st;
+      return st;
+    }
+
+    function bumpEpicPaTouch() {
+      var st = readEpicPaState();
+      if (st.m < 120) st.m += 1;
+      try {
+        if (w.localStorage) w.localStorage.setItem(EPIC_PA_STATE_KEY, JSON.stringify(st));
+      } catch (_) {}
+    }
+
+    // Equivalente a ka.b(Context) + d0.A(Context) en z6/d0.java:550-570:
+    // c.t0k1s<sim>b1f1x0.d0m<m>r0.g<0|2>.j0  (g=0 si m<3 [ESPERA], g=2 si m>=3 [DUDA])
+    function getEpicPaString() {
+      var prof = getEpicDeviceProfile();
+      var st = readEpicPaState();
+      var gOrd = st.m >= 3 ? 2 : 0;
+      return 'c.t0k1s' + prof.sim + 'b1f1x0.d0m' + st.m + 'r0.g' + gOrd + '.j0';
     }
 
     var ORIG_USER_AGENT = w.__xeOrigUserAgent || (typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '');
     if (!w.__xeOrigUserAgent && ORIG_USER_AGENT) w.__xeOrigUserAgent = ORIG_USER_AGENT;
-    var EPIC_MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
-    var EPIC_DALVIK_UA = 'Dalvik/2.1.0 (Linux; U; Android 13; SM-G991B Build/TP1A.220624.014)';
     var __xeEpicUaPromise = null;
-    var __xeEpicUaMode = '';
+    var __xeCurrentApId = '';
+
+    function rotateEpicApId() {
+      __xeCurrentApId = randomHexStr(8);
+      w.__xeEpicApId = __xeCurrentApId;
+      return __xeCurrentApId;
+    }
+
+    function getEpicApId() {
+      return __xeCurrentApId || '';
+    }
 
     function isEpicBlockedHost(url) {
-      return /playlatam\.site|epictvparaiphone\.top|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221/i.test(String(url || ''));
+      return /playlatam\.site|epictvparaiphone\.top|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221|85\.121\.177\.8/i.test(String(url || ''));
     }
 
     function isPlaylatamHost(url) {
-      return /playlatam\.site|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221/i.test(String(url || ''));
+      return /playlatam\.site|api\.entrada-sur\.workers\.dev|187\.127\.21\.89|84\.32\.109\.221|85\.121\.177\.8/i.test(String(url || ''));
     }
 
     function isEpicStreamProxyUrl(url) {
@@ -568,61 +692,41 @@
     }
 
     function isPulseraExpired() {
-      var tok = getEpicTokenCached() || DEFAULT_PULSERA;
-      try {
-        var parts = String(tok || '').split('.');
-        if (parts.length >= 3) {
-          var expSec = parseInt(parts[2], 10);
-          if (expSec > 1000000000 && Date.now() >= (expSec * 1000)) return true;
-        }
-      } catch (_) {}
-      return false;
+      return isPortalCredExpired();
     }
 
     function ensureEpicUserAgent() {
       try {
         var curUa = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
-        if (/^Dalvik\//i.test(curUa)) {
+        var targetUa = getEpicDeviceProfile().ua;
+        if (curUa === targetUa || w.__xeEpicUaApplied === targetUa) {
           return Promise.resolve(true);
         }
-        if (__xeEpicUaPromise) return __xeEpicUaPromise;
+        if (w.__xeEpicUaPromise) return w.__xeEpicUaPromise;
         if (w.tizen && w.tizen.websetting && typeof w.tizen.websetting.setUserAgentString === 'function') {
-          __xeEpicUaPromise = new Promise(function (resolve) {
+          w.__xeEpicUaPromise = new Promise(function (resolve) {
             var done = false;
             var tm = setTimeout(function () {
-              if (!done) { done = true; __xeEpicUaPromise = null; resolve(false); }
+              if (!done) { done = true; w.__xeEpicUaPromise = null; resolve(false); }
             }, 1200);
             try {
-              w.tizen.websetting.setUserAgentString(EPIC_DALVIK_UA, function () {
-                if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(true); }
+              w.tizen.websetting.setUserAgentString(targetUa, function () {
+                if (!done) { done = true; clearTimeout(tm); w.__xeEpicUaApplied = targetUa; w.__xeEpicUaPromise = null; resolve(true); }
               }, function () {
-                if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(false); }
+                if (!done) { done = true; clearTimeout(tm); w.__xeEpicUaPromise = null; resolve(false); }
               });
             } catch (_) {
-              if (!done) { done = true; clearTimeout(tm); __xeEpicUaPromise = null; resolve(false); }
+              if (!done) { done = true; clearTimeout(tm); w.__xeEpicUaPromise = null; resolve(false); }
             }
           });
-          return __xeEpicUaPromise;
+          return w.__xeEpicUaPromise;
         }
       } catch (_) {}
       return Promise.resolve(false);
     }
 
     function getEpicTokenCached() {
-      try {
-        var raw = w.localStorage && w.localStorage.getItem(EPIC_TOKEN_KEY);
-        if (raw) {
-          var parsed = JSON.parse(raw);
-          if (parsed && isValidPulseraToken(parsed.token) && (Date.now() - (parsed.timestamp || 0)) < EPIC_TTL_MS) {
-            return parsed.token;
-          }
-          // Limpiar tokens invalidos (ej. "numero" corto sin ".gente.") guardados previamente
-          if (parsed && !isValidPulseraToken(parsed.token)) {
-            try { w.localStorage.removeItem(EPIC_TOKEN_KEY); } catch (_) {}
-          }
-        }
-      } catch (_) {}
-      return '';
+      return getCachedEpicCred();
     }
 
     function isTizen3Device() {
@@ -630,32 +734,76 @@
       return /Tizen\s*3\.|AppleWebKit\/538/i.test(ua);
     }
 
-    var PORTAL_MIRRORS = [
+    var PORTAL_MIRRORS = w.__xePortalMirrors || (w.__xePortalMirrors = [
       'https://playlatam.site',
-      'https://api.entrada-sur.workers.dev',
-      'https://187.127.21.89',
-      'https://84.32.109.221'
-    ];
+      'https://api.entrada-sur.workers.dev'
+    ]);
     var PORTAL_BEST_HOST_KEY = 'xuper.portal_best_host';
     var PORTAL_BEST_HOST_TTL = 30 * 60 * 1000;
     var PORTAL_APARATO_KEY = 'xuper_epic_aparato_id';
     var PORTAL_LEGACY_APARATO_KEY = 'xuper.portal_aparato_id';
 
+    function randomHexStr(len) {
+      var out = '';
+      for (var i = 0; i < len; i++) {
+        out += Math.floor(Math.random() * 16).toString(16);
+      }
+      return out;
+    }
+
+    // Equivalente a fj.o(Context) en z6/fj.java:459-511:
+    // inst_id_estable = SHA-256(android_id + "misstreams").substring(0, 8)
     function getPortalAparatoId() {
-      if (w.__xePortalAparatoId) return w.__xePortalAparatoId;
+      if (w.__xePortalAparatoId && !EPIC_BLACKLISTED_IDS[w.__xePortalAparatoId]) {
+        return w.__xePortalAparatoId;
+      }
       try {
         var saved = w.localStorage && (w.localStorage.getItem(PORTAL_APARATO_KEY) || w.localStorage.getItem(PORTAL_LEGACY_APARATO_KEY));
         if (saved && /^[0-9a-f]{8}$/i.test(saved)) {
-          w.__xePortalAparatoId = saved.toLowerCase();
-          try { w.localStorage.setItem(PORTAL_APARATO_KEY, w.__xePortalAparatoId); } catch (_) {}
-          return w.__xePortalAparatoId;
+          var normSaved = saved.toLowerCase();
+          if (!EPIC_BLACKLISTED_IDS[normSaved]) {
+            w.__xePortalAparatoId = normSaved;
+            try { w.localStorage.setItem(PORTAL_APARATO_KEY, normSaved); } catch (_) {}
+            return normSaved;
+          }
+          try {
+            w.localStorage.removeItem(PORTAL_APARATO_KEY);
+            w.localStorage.removeItem(PORTAL_LEGACY_APARATO_KEY);
+          } catch (_) {}
         }
       } catch (_) {}
-      var hex = '';
-      for (var i = 0; i < 8; i++) {
-        hex += Math.floor(Math.random() * 16).toString(16);
+
+      var androidSeed = '';
+      try {
+        androidSeed = (w.localStorage && w.localStorage.getItem(EPIC_ANDROID_SEED_KEY)) || '';
+      } catch (_) {}
+      if (!/^[0-9a-f]{16}$/i.test(androidSeed)) {
+        var hwSeed = '';
+        try {
+          if (w.webapis && w.webapis.productinfo && typeof w.webapis.productinfo.getDuid === 'function') {
+            hwSeed = String(w.webapis.productinfo.getDuid() || '');
+          }
+        } catch (_) {}
+        if (w.CryptoJS && w.CryptoJS.SHA256) {
+          androidSeed = w.CryptoJS.SHA256(hwSeed + ':' + randomHexStr(16) + ':' + Date.now()).toString().toLowerCase().slice(0, 16);
+        } else {
+          androidSeed = randomHexStr(16);
+        }
+        try {
+          if (w.localStorage) w.localStorage.setItem(EPIC_ANDROID_SEED_KEY, androidSeed);
+        } catch (_) {}
       }
-      if (!/^[0-9a-f]{8}$/i.test(hex)) hex = 'a1b2c3d4';
+
+      var hex = '';
+      if (w.CryptoJS && w.CryptoJS.SHA256) {
+        hex = w.CryptoJS.SHA256(androidSeed + 'misstreams').toString().toLowerCase().slice(0, 8);
+      } else {
+        hex = randomHexStr(8);
+      }
+      var idGuard = 0;
+      while ((!/^[0-9a-f]{8}$/i.test(hex) || EPIC_BLACKLISTED_IDS[hex]) && idGuard++ < 10) {
+        hex = randomHexStr(8);
+      }
       w.__xePortalAparatoId = hex;
       try {
         if (w.localStorage) w.localStorage.setItem(PORTAL_APARATO_KEY, hex);
@@ -663,12 +811,342 @@
       return hex;
     }
 
-    function getEpicAccessHeaders(extra) {
-      var h = Object.assign({}, extra || {});
-      h['X-Llave'] = EPIC_LLAVE;
-      h['X-Aparato'] = getPortalAparatoId();
-      if (!h['X-Pulsera']) h['X-Pulsera'] = '1';
+    // Equivalente a ka.b(Context) + z4.a(Context) en z6/ka.java:244-289:
+    // fs = HMAC-SHA256(key = X-Llave, msg = "<X-Aparato>|<SHA256_CERT>").slice(0, 10)
+    function getEpicFirmaSig(aparatoId) {
+      var id = String(aparatoId || getPortalAparatoId()).toLowerCase();
+      var msg = id + '|' + EPIC_APK_CERT_SHA256;
+      if (w.CryptoJS && typeof w.CryptoJS.HmacSHA256 === 'function') {
+        return w.CryptoJS.HmacSHA256(msg, EPIC_LLAVE).toString().toLowerCase().slice(0, 10);
+      }
+      if (w.CryptoJS && typeof w.CryptoJS.SHA256 === 'function') {
+        return w.CryptoJS.SHA256(EPIC_LLAVE + ':' + msg).toString().toLowerCase().slice(0, 10);
+      }
+      return '0000000000';
+    }
+
+    // Validacion de X-Cred (<8hex>.<X-Aparato>.<desdeSec>.<64hex>) para esta TV (z6/f8.java:88-119)
+    function parseEpicCredMeta(credStr, expectedId) {
+      if (typeof credStr !== 'string' || credStr.length < 40) return null;
+      var parts = credStr.trim().split('.');
+      if (parts.length !== 4) return null;
+      var devId = parts[1].toLowerCase();
+      if (EPIC_BLACKLISTED_IDS[devId]) return null;
+      if (expectedId && devId !== String(expectedId).toLowerCase()) return null;
+      var desdeSec = parseInt(parts[2], 10);
+      if (!isFinite(desdeSec) || desdeSec < 1700000000) return null;
+      if (!/^[0-9a-f]{64}$/i.test(parts[3])) return null;
+      return {
+        cred: credStr.trim(),
+        id: devId,
+        desdeSec: desdeSec,
+        expSec: desdeSec + EPIC_CRED_TTL_SEC
+      };
+    }
+
+    function getCachedEpicCredObj() {
+      var curId = getPortalAparatoId();
+      var nowSec = Math.floor(Date.now() / 1000);
+      if (w.__xeEpicCredObj && w.__xeEpicCredObj.id === curId && (nowSec - w.__xeEpicCredObj.desdeSec) <= EPIC_CRED_MAX_AGE_SEC) {
+        return w.__xeEpicCredObj;
+      }
+      try {
+        var raw = w.localStorage && w.localStorage.getItem(EPIC_CRED_KEY);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          var meta = parsed && parseEpicCredMeta(parsed.cred || parsed.credencial, curId);
+          if (meta && (nowSec - meta.desdeSec) <= EPIC_CRED_MAX_AGE_SEC) {
+            w.__xeEpicCredObj = meta;
+            return meta;
+          }
+          try { w.localStorage.removeItem(EPIC_CRED_KEY); } catch (_) {}
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    function getCachedEpicCred() {
+      var obj = getCachedEpicCredObj();
+      return obj ? obj.cred : '';
+    }
+
+    function saveCachedEpicCred(credStr) {
+      var curId = getPortalAparatoId();
+      var meta = parseEpicCredMeta(credStr, curId);
+      if (!meta) return '';
+      w.__xeEpicCredObj = meta;
+      w.__xePlaylatamAuthBlocked = false;
+      try {
+        if (w.localStorage) {
+          w.localStorage.setItem(EPIC_CRED_KEY, JSON.stringify({
+            cred: meta.cred,
+            id: meta.id,
+            desdeSec: meta.desdeSec,
+            expSec: meta.expSec,
+            ts: Date.now()
+          }));
+        }
+      } catch (_) {}
+      return meta.cred;
+    }
+
+    function clearCachedEpicCred() {
+      w.__xeEpicCredObj = null;
+      try {
+        if (w.localStorage) w.localStorage.removeItem(EPIC_CRED_KEY);
+      } catch (_) {}
+    }
+
+    function resetBackoffIfCredOlderThan6h() {
+      try {
+        var prevTs = 0;
+        var raw = w.localStorage && w.localStorage.getItem(EPIC_CRED_KEY);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && parsed.ts) prevTs = parsed.ts;
+        }
+        var ageMs = Date.now() - prevTs;
+        if (!prevTs || ageMs < 0 || ageMs >= 21600000) {
+          w.__xeEpicRegFailCount = 0;
+          w.__xeEpicRegNextAllowedTs = 0;
+        }
+      } catch (_) {}
+    }
+
+    function renewCredOn401(baseHdrs) {
+      if (w.__xeEpic401RenewPromise) return w.__xeEpic401RenewPromise;
+      resetBackoffIfCredOlderThan6h();
+      clearCachedEpicCred();
+      w.__xeEpic401RenewPromise = ensureEpicCred(true).then(function () {
+        w.__xeEpic401RenewPromise = null;
+        return getEpicAccessHeaders(baseHdrs, { ap: getEpicApId() });
+      }, function () {
+        w.__xeEpic401RenewPromise = null;
+        return getEpicAccessHeaders(baseHdrs, { ap: getEpicApId() });
+      });
+      return w.__xeEpic401RenewPromise;
+    }
+
+    // Equivalente a n1.D() en z6/n1.java:175-214:
+    // Envia X-Cred O X-Llave (nunca ambas a la vez), siempre con X-Aparato y X-Ap si existe
+    function getEpicAccessHeaders(extra, opts) {
+      var options = opts || {};
+      var h = {};
+      if (extra) {
+        for (var k in extra) {
+          if (Object.prototype.hasOwnProperty.call(extra, k) && extra[k] !== undefined && extra[k] !== null) {
+            if (k === 'X-Pulsera' || k === 'X-Pantalla' || k === 'X-Llave' || k === 'X-Cred' || k === 'X-Ap') continue;
+            h[k] = extra[k];
+          }
+        }
+      }
+      var id = getPortalAparatoId();
+      var cred = options.forRegister ? '' : getCachedEpicCred();
+      if (cred) {
+        h['X-Cred'] = cred;
+      } else {
+        h['X-Llave'] = EPIC_LLAVE;
+      }
+      h['X-Aparato'] = id;
+      var apVal = options.ap || (options.includeActiveAp ? getEpicApId() : '');
+      if (apVal) {
+        h['X-Ap'] = String(apVal);
+      }
       return h;
+    }
+
+    // Auto-registro por TV en /registrar con backoff exponencial 1m -> 5m -> 30m -> 6h (z6/f8.java)
+    function ensureEpicCred(forceRefresh) {
+      var curObj = forceRefresh ? null : getCachedEpicCredObj();
+      var nowMs = Date.now();
+      var nowSec = Math.floor(nowMs / 1000);
+      var nextAllowed = w.__xeEpicRegNextAllowedTs || 0;
+      if (curObj) {
+        // Renovacion proactiva en segundo plano cuando supera 136 dias (14 dias antes del limite de 150 dias)
+        if ((nowSec - curObj.desdeSec) > EPIC_RENEW_AFTER_SEC && !w.__xeEpicRegPromise && nowMs >= nextAllowed) {
+          setTimeout(function () { ensureEpicCred(true).catch(function () {}); }, 50);
+        }
+        return Promise.resolve(curObj.cred);
+      }
+      if (w.__xeEpicRegPromise) return w.__xeEpicRegPromise;
+      if (nowMs < nextAllowed) {
+        var fallbackObj = getCachedEpicCredObj();
+        return Promise.resolve(fallbackObj ? fallbackObj.cred : '');
+      }
+      if (typeof w.fetch !== 'function') return Promise.resolve('');
+
+      var regHdrs = getEpicAccessHeaders({
+        'Accept': 'application/json',
+        'X-App-Version': String(getEpicVersionCode())
+      }, { forRegister: true });
+      w.__xeEpicRegPromise = epicFetch(EPIC_REGISTRAR_URL, 'GET', regHdrs, 5000)
+        .then(function (j) {
+          w.__xeEpicRegPromise = null;
+          var rawCred = (j && (j.credencial || j.cred || j.token)) || '';
+          var saved = saveCachedEpicCred(rawCred);
+          if (saved) {
+            w.__xeEpicRegFailCount = 0;
+            w.__xeEpicRegNextAllowedTs = 0;
+            return saved;
+          }
+          throw new Error('Credencial invalida en /registrar');
+        })
+        .catch(function () {
+          w.__xeEpicRegPromise = null;
+          var failCnt = w.__xeEpicRegFailCount || 0;
+          var bIdx = Math.min(failCnt, EPIC_REG_BACKOFF_MS.length - 1);
+          w.__xeEpicRegNextAllowedTs = Date.now() + EPIC_REG_BACKOFF_MS[bIdx];
+          w.__xeEpicRegFailCount = failCnt + 1;
+          var prevObj = getCachedEpicCredObj();
+          return prevObj ? prevObj.cred : '';
+        });
+      return w.__xeEpicRegPromise;
+    }
+
+    function ensureEpicMenuHandshake() {
+      var now = Date.now();
+      if (w.__xeEpicMenuHandshakeTs && (now - w.__xeEpicMenuHandshakeTs) < EPIC_JSON_TTL_MS) {
+        return Promise.resolve(true);
+      }
+      if (w.__xeEpicMenuHandshakePromise) return w.__xeEpicMenuHandshakePromise;
+      if (typeof w.fetch !== 'function' || isTizen3Device()) return Promise.resolve(false);
+      w.__xeEpicMenuHandshakePromise = ensureEpicCred(false).then(function () {
+        var hdrs = getEpicAccessHeaders({ 'Accept': 'application/json' }, { includeActiveAp: true });
+        return epicFetch(buildEpicMenuUrl(), 'GET', hdrs, 6000).then(function (menuPayload) {
+          w.__xeEpicMenuHandshakePromise = null;
+          w.__xeEpicMenuHandshakeTs = Date.now();
+          if (menuPayload && typeof menuPayload === 'object') {
+            w.__xeEpicLastMenuPayload = menuPayload;
+            registerDynamicMirrorsFromPayload(menuPayload);
+          }
+          return true;
+        });
+      }).catch(function () {
+        w.__xeEpicMenuHandshakePromise = null;
+        return false;
+      });
+      return w.__xeEpicMenuHandshakePromise;
+    }
+
+    function ensureEpicAccessHeaders(extra, opts) {
+      return ensureEpicUserAgent().then(function () {
+        return ensureEpicCred(false);
+      }).then(function () {
+        return getEpicAccessHeaders(extra, opts);
+      });
+    }
+
+    function getEpicTimezone() {
+      var tz = 'America/Mexico_City';
+      try {
+        if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+          var resolvedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (resolvedTz) tz = resolvedTz;
+        }
+      } catch (_) {}
+      return tz;
+    }
+
+    function getEpicPaisCode() {
+      var tz = getEpicTimezone();
+      if (/Bogota/i.test(tz)) return 'CO';
+      if (/Argentina|Buenos_Aires|Cordoba|Mendoza|Rosario/i.test(tz)) return 'AR';
+      if (/Lima/i.test(tz)) return 'PE';
+      if (/Santiago/i.test(tz)) return 'CL';
+      if (/Guayaquil/i.test(tz)) return 'EC';
+      if (/Caracas/i.test(tz)) return 'VE';
+      if (/Madrid|Ceuta|Canary/i.test(tz)) return 'ES';
+      if (/Guatemala/i.test(tz)) return 'GT';
+      if (/Montevideo/i.test(tz)) return 'UY';
+      if (/Asuncion/i.test(tz)) return 'PY';
+      if (/La_Paz/i.test(tz)) return 'BO';
+      if (/Santo_Domingo/i.test(tz)) return 'DO';
+      if (/Costa_Rica/i.test(tz)) return 'CR';
+      if (/Panama/i.test(tz)) return 'PA';
+      if (/El_Salvador/i.test(tz)) return 'SV';
+      if (/Tegucigalpa/i.test(tz)) return 'HN';
+      if (/Managua/i.test(tz)) return 'NI';
+      if (/New_York|Chicago|Denver|Los_Angeles|Phoenix/i.test(tz)) return 'US';
+      return 'MX';
+    }
+
+    function getEpicIdioma() {
+      try {
+        var lang = (typeof navigator !== 'undefined' && (navigator.language || navigator.userLanguage)) ? String(navigator.language || navigator.userLanguage) : 'es';
+        var code = lang.split(/[-_]/)[0].toLowerCase();
+        if (/^[a-z]{2,3}$/.test(code)) return code;
+      } catch (_) {}
+      return 'es';
+    }
+
+    // Equivalente a n1.h(pais, false) en z6/n1.java:560-581
+    function buildEpicCanalesUrl(paisApp, devMode) {
+      var p = encodeURIComponent(String(paisApp || getEpicPaisCode()));
+      var d = devMode ? '1' : '0';
+      return EPIC_CANALES_URL + '?pais=1&pais_app=' + p + '&dev=' + d + '&v=' + getEpicVersionCode() + '&recetas=aparte&forma=2';
+    }
+
+    // Equivalente a n1.p() + ka.b() en z6/n1.java / z6/ka.smali
+    function buildEpicMenuUrl() {
+      var id = getPortalAparatoId();
+      var fs = getEpicFirmaSig(id);
+      var prof = getEpicDeviceProfile();
+      var tz = getEpicTimezone();
+      var idioma = getEpicIdioma();
+      var pa = getEpicPaString();
+      return EPIC_MENU_URL +
+        '?all=1&recetas=aparte' +
+        '&id=' + encodeURIComponent(id) +
+        '&v=' + getEpicVersionCode() +
+        '&red=' + encodeURIComponent(prof.red) +
+        '&m=' + encodeURIComponent(prof.m) +
+        '&letra=' + encodeURIComponent(prof.letra) +
+        '&dpi=' + prof.dpi +
+        '&fab=' + prof.fab +
+        '&sw=' + prof.sw +
+        '&idioma=' + encodeURIComponent(idioma) +
+        '&pa=' + encodeURIComponent(pa) +
+        '&fs=' + encodeURIComponent(fs) +
+        '&tz=' + encodeURIComponent(tz);
+    }
+
+    function registerDynamicPortalMirrorsFromResponse(resp) {
+      if (!resp || !resp.headers || typeof resp.headers.get !== 'function') return;
+      try {
+        var rawFaros = resp.headers.get('X-Faros') || resp.headers.get('X-Faro') || '';
+        if (!rawFaros) return;
+        var matches = String(rawFaros).match(/https:\/\/[a-zA-Z0-9._-]+/g) || [];
+        for (var i = 0; i < matches.length; i++) {
+          var host = matches[i].replace(/\/+$/, '');
+          if (host && !/^https:\/\/\d+\.\d+\.\d+\.\d+$/i.test(host) && PORTAL_MIRRORS.indexOf(host) === -1 && PORTAL_MIRRORS.length < 10) {
+            PORTAL_MIRRORS.push(host);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Equivalente a yj.b() en z6/yj.java:71-103 (extrae faros de aviso/sello MS1.<base64>.<sig>)
+    function registerDynamicMirrorsFromPayload(payload) {
+      if (!payload || typeof payload !== 'object' || typeof atob !== 'function') return;
+      try {
+        var aviso = payload.aviso || payload;
+        var sello = String((aviso && aviso.sello) || payload.sello || '').trim();
+        if (sello.indexOf('MS1.') !== 0) return;
+        var parts = sello.split('.');
+        if (parts.length !== 3) return;
+        var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        var decoded = JSON.parse(atob(b64));
+        var faros = decoded && Array.isArray(decoded.faros) ? decoded.faros : [];
+        for (var i = 0; i < faros.length; i++) {
+          var fUrl = String((faros[i] && faros[i].url) || faros[i] || '').trim().replace(/\/+$/, '');
+          if (/^https:\/\/[a-zA-Z0-9._-]+$/i.test(fUrl) && !/^https:\/\/\d+\.\d+\.\d+\.\d+$/i.test(fUrl)) {
+            if (PORTAL_MIRRORS.indexOf(fUrl) === -1 && PORTAL_MIRRORS.length < 10) {
+              PORTAL_MIRRORS.push(fUrl);
+            }
+          }
+        }
+      } catch (_) {}
     }
 
     function getCachedBestPortalHost() {
@@ -716,8 +1194,8 @@
             var t0 = Date.now();
             var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
             var tm = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (_) {} }, 3200) : null;
-            w.fetch(mirrorHost + '/iphone/pulsera', {
-              method: 'POST',
+            w.fetch(mirrorHost + '/app/version', {
+              method: 'GET',
               headers: { 'Accept': 'application/json, text/plain, */*' },
               signal: ctrl ? ctrl.signal : undefined
             }).then(function (r) {
@@ -729,6 +1207,9 @@
                   bestHost = mirrorHost;
                   saveBestPortalHost(bestHost, bestMs);
                 }
+                return r.json().then(function (verJson) {
+                  updateEpicVersionFromRemote(verJson);
+                }).catch(function () {});
               }
             }).catch(function () {
               if (tm) clearTimeout(tm);
@@ -758,13 +1239,10 @@
         return Promise.reject(new Error('PlayLatam desactivado (credencial expirada)'));
       }
       var relay = w.XuperRelay;
-      function execOnce(urlToCall, useRelay, mirrorBase) {
+      function execOnce(urlToCall, useRelay, mirrorBase, overrideHdrs, retry401Done) {
         var reqUrl = urlToCall;
-        var reqHdrs = Object.assign({}, headers || {});
+        var reqHdrs = Object.assign({}, overrideHdrs || headers || {});
         if (useRelay && relay && typeof relay.wrapPortalRequest === 'function') {
-          if (reqHdrs['X-Pulsera'] && !reqHdrs['X-Cookie']) {
-            reqHdrs['X-Cookie'] = '__Host-pulsera=' + reqHdrs['X-Pulsera'];
-          }
           var wrapped = relay.wrapPortalRequest(targetUrl, { method: method || 'GET', headers: reqHdrs });
           if (wrapped && wrapped.relayed) {
             reqUrl = wrapped.url;
@@ -780,8 +1258,12 @@
           signal: ctrl ? ctrl.signal : undefined
         }).then(function (r) {
           if (tm) clearTimeout(tm);
-          if (r && r.status === 401 && isPlaylatamHost(urlToCall)) {
-            w.__xePlaylatamAuthBlocked = true;
+          registerDynamicPortalMirrorsFromResponse(r);
+          if (r && r.status === 401 && !retry401Done && isPlaylatamHost(urlToCall) && reqHdrs['X-Cred']) {
+            return renewCredOn401(headers).then(function (newHdrs) {
+              headers = newHdrs;
+              return execOnce(urlToCall, useRelay, mirrorBase, newHdrs, true);
+            });
           }
           if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : 0));
           if (mirrorBase && !useRelay) {
@@ -843,31 +1325,7 @@
     }
 
     function fetchEpicTokenFresh() {
-      var cachedTok = getEpicTokenCached();
-      if (isValidPulseraToken(cachedTok)) {
-        return Promise.resolve(cachedTok);
-      }
-      if (typeof w.fetch !== 'function') return Promise.resolve(DEFAULT_PULSERA || FALLBACK_PULSERA);
-      var hdrs = {
-        'Accept': 'application/json, text/plain, */*',
-        'User-Agent': EPIC_MOBILE_UA,
-        'Referer': 'https://playlatam.site/iphone/',
-        'Origin': 'https://playlatam.site',
-        'X-Requested-With': 'XMLHttpRequest'
-      };
-      return epicFetch(EPIC_PULSERA_URL, 'POST', hdrs, 3500)
-        .then(function (j) {
-          var candidate = j && j.token;
-          var tok = isValidPulseraToken(candidate) ? candidate : (DEFAULT_PULSERA || FALLBACK_PULSERA);
-          if (isValidPulseraToken(candidate)) {
-            try {
-              if (w.localStorage) w.localStorage.setItem(EPIC_TOKEN_KEY, JSON.stringify({ token: tok, timestamp: Date.now() }));
-            } catch (_) {}
-          }
-          return tok;
-        }).catch(function () {
-          return DEFAULT_PULSERA || FALLBACK_PULSERA;
-        });
+      return ensureEpicCred(false);
     }
 
     function normalizeEpicChannelUrl(rawUrl, slug) {
@@ -933,9 +1391,21 @@
             ? (rawLogo.indexOf('http') === 0 ? rawLogo : ('https://epictvparaiphone.top' + (rawLogo.charAt(0) === '/' ? '' : '/') + rawLogo))
             : ((statMatch && statMatch.logo) || '');
           var backupList = [];
+          if (/^https:\/\/playlatam\.site\/perelman\//i.test(url)) {
+            backupList.push(url.replace(/^https:\/\/playlatam\.site/i, 'https://api.entrada-sur.workers.dev'));
+          }
           if (item.url && String(item.url).indexOf('http') === 0) {
             var altUrl = /\.m3u8($|\?)/i.test(String(item.url)) ? String(item.url) : (String(item.url) + '.m3u8');
-            if (altUrl !== url) backupList.push(altUrl);
+            if (altUrl !== url && backupList.indexOf(altUrl) === -1) backupList.push(altUrl);
+          }
+          if (Array.isArray(item.respaldos)) {
+            for (var rIdx = 0; rIdx < item.respaldos.length; rIdx++) {
+              var rObj = item.respaldos[rIdx];
+              var rUrl = String((rObj && typeof rObj === 'object') ? (rObj.url || rObj.link || rObj.stream || '') : (rObj || '')).trim();
+              if (!/^https?:\/\//i.test(rUrl) || /youtube\.com|youtu\.be|\.mpd(\?|$)|tvf90\.com/i.test(rUrl)) continue;
+              if (/\/perelman\/[^/?#]+$/i.test(rUrl) && !/\.m3u8(\?|#|$)/i.test(rUrl)) rUrl += '.m3u8';
+              if (rUrl !== url && backupList.indexOf(rUrl) === -1) backupList.push(rUrl);
+            }
           }
           var chName = String(item.nombre || item.name || item.title || (statMatch && statMatch.name) || cleanId).replace(/\s*·\s*[^·]+$/, '').trim();
           var itemCat = String(item.categoryName || item.pais || item.folder || (statMatch && statMatch.folder) || '').trim();
@@ -972,22 +1442,86 @@
       return merged;
     }
 
+    function extractEpicCanalesArray(payload) {
+      if (Array.isArray(payload)) return payload;
+      if (payload && typeof payload === 'object') {
+        if (Array.isArray(payload.canales)) return payload.canales;
+        if (Array.isArray(payload.channels)) return payload.channels;
+        if (Array.isArray(payload.data)) return payload.data;
+      }
+      return [];
+    }
+
+    // Descarga unificada de /canales con X-Cred auto-registrada por TV y parametros oficiales v186 (forma=2)
+    function fetchSharedPortalCanalesPayload() {
+      var now = Date.now();
+      if (w.__xeSharedCanalesArr && w.__xeSharedCanalesArr.length && (now - (w.__xeSharedCanalesTs || 0)) < EPIC_JSON_TTL_MS) {
+        return Promise.resolve(w.__xeSharedCanalesArr);
+      }
+      if (w.__xeSharedCanalesPromise) return w.__xeSharedCanalesPromise;
+      if (typeof w.fetch !== 'function') return Promise.resolve([]);
+
+      var tryBackupJson = function () {
+        var channelsJsonUrl = (w.XuperRelay && typeof w.XuperRelay.signQueryUrl === 'function' && /(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev)/i.test(EPIC_CHANNELS_JSON))
+          ? w.XuperRelay.signQueryUrl(EPIC_CHANNELS_JSON, 'playlatam:channels')
+          : EPIC_CHANNELS_JSON;
+        return epicFetch(channelsJsonUrl, 'GET', { 'Accept': 'application/json' }, 5000)
+          .then(function (payload) {
+            var arr = extractEpicCanalesArray(payload);
+            if (arr && arr.length) return arr;
+            return epicFetch(EPIC_CHANNELS_JSON_FALLBACK, 'GET', { 'Accept': 'application/json' }, 5000)
+              .then(function (fbPayload) {
+                return extractEpicCanalesArray(fbPayload);
+              });
+          })
+          .catch(function () {
+            return epicFetch(EPIC_CHANNELS_JSON_FALLBACK, 'GET', { 'Accept': 'application/json' }, 5000)
+              .then(function (fbPayload) {
+                return extractEpicCanalesArray(fbPayload);
+              })
+              .catch(function () {
+                return [];
+              });
+          });
+      };
+
+      var tryDirectCanales = function () {
+        return ensureEpicAccessHeaders({ 'Accept': 'application/json' }, { includeActiveAp: true }).then(function (hdrs) {
+          ensureEpicMenuHandshake().catch(function () {});
+          return epicFetch(buildEpicCanalesUrl(getEpicPaisCode(), false), 'GET', hdrs, 7500).then(function (payload) {
+            registerDynamicMirrorsFromPayload(payload);
+            var arr = extractEpicCanalesArray(payload);
+            if (arr && arr.length) return arr;
+            throw new Error('Respuesta /canales vacia');
+          });
+        });
+      };
+
+      w.__xeSharedCanalesPromise = (isTizen3Device()
+        ? tryBackupJson().then(function (arr) { return (arr && arr.length) ? arr : tryDirectCanales(); })
+        : tryDirectCanales()
+      ).then(function (arr) {
+        w.__xeSharedCanalesPromise = null;
+        if (Array.isArray(arr) && arr.length) {
+          w.__xeSharedCanalesArr = arr;
+          w.__xeSharedCanalesTs = Date.now();
+          return arr;
+        }
+        return [];
+      }).catch(function () {
+        w.__xeSharedCanalesPromise = null;
+        return [];
+      });
+
+      return w.__xeSharedCanalesPromise;
+    }
+
     function fetchRawEpicPerelmanChannels() {
       var now = Date.now();
       if (w.__xeEpicRawCache && w.__xeEpicRawCache.length && (now - (w.__xeEpicRawCacheTs || 0)) < EPIC_JSON_TTL_MS) {
         return Promise.resolve(w.__xeEpicRawCache);
       }
       if (typeof w.fetch !== 'function') return Promise.resolve(mergeEpicChannels(null));
-
-      var extractEpicArray = function (payload) {
-        if (Array.isArray(payload)) return payload;
-        if (payload && typeof payload === 'object') {
-          if (Array.isArray(payload.channels)) return payload.channels;
-          if (Array.isArray(payload.canales)) return payload.canales;
-          if (Array.isArray(payload.data)) return payload.data;
-        }
-        return [];
-      };
 
       var saveAndReturn = function (arr) {
         var merged = mergeEpicChannels(arr && arr.length ? arr : null);
@@ -998,49 +1532,20 @@
         return merged;
       };
 
-      var fetchFromCanalesDirect = function () {
-        var hdrs = getEpicAccessHeaders({ 'Accept': 'application/json' });
-        return epicFetch(EPIC_CANALES_URL, 'GET', hdrs, 5000)
-          .then(function (payload) {
-            var arr = extractEpicArray(payload).filter(function (f) {
-              return f && (
-                f.fuente === 'perelman' ||
-                String(f.id || '').indexOf('pere-') === 0 ||
-                String(f.url || '').indexOf('/perelman/') !== -1
-              ) && typeof f.url === 'string';
-            });
-            return saveAndReturn(arr);
-          })
-          .catch(function () {
-            return mergeEpicChannels(null);
+      return fetchSharedPortalCanalesPayload()
+        .then(function (allArr) {
+          var pereArr = (allArr || []).filter(function (f) {
+            return f && (
+              f.fuente === 'perelman' ||
+              f.cocina === 'perelman' ||
+              String(f.id || '').indexOf('pere-') === 0 ||
+              String(f.url || '').indexOf('/perelman/') !== -1
+            ) && typeof f.url === 'string';
           });
-      };
-
-      var channelsJsonUrl = (w.XuperRelay && typeof w.XuperRelay.signQueryUrl === 'function' && /(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev)/i.test(EPIC_CHANNELS_JSON))
-        ? w.XuperRelay.signQueryUrl(EPIC_CHANNELS_JSON, 'playlatam:channels')
-        : EPIC_CHANNELS_JSON;
-
-      return epicFetch(channelsJsonUrl, 'GET', { 'Accept': 'application/json' }, 5000)
-        .then(function (payload) {
-          var arr = extractEpicArray(payload);
-          if (arr && arr.length) return saveAndReturn(arr);
-          return epicFetch(EPIC_CHANNELS_JSON_FALLBACK, 'GET', { 'Accept': 'application/json' }, 5000)
-            .then(function (fbPayload) {
-              var fbArr = extractEpicArray(fbPayload);
-              if (fbArr && fbArr.length) return saveAndReturn(fbArr);
-              return fetchFromCanalesDirect();
-            });
+          return saveAndReturn(pereArr.length ? pereArr : allArr);
         })
         .catch(function () {
-          return epicFetch(EPIC_CHANNELS_JSON_FALLBACK, 'GET', { 'Accept': 'application/json' }, 5000)
-            .then(function (fbPayload) {
-              var fbArr = extractEpicArray(fbPayload);
-              if (fbArr && fbArr.length) return saveAndReturn(fbArr);
-              return fetchFromCanalesDirect();
-            })
-            .catch(function () {
-              return fetchFromCanalesDirect();
-            });
+          return mergeEpicChannels(null);
         });
     }
 
@@ -1088,10 +1593,8 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Canales del portal oficial (/canales con X-Cred)
+    // Canales del portal oficial (/canales v186 con X-Cred propia por TV)
     // ─────────────────────────────────────────────────────────────
-
-    var PORTAL_CRED = '75c621e6.1fe6d1c6.1794808297.9435c39a162550b14136a3ef12c2a2f1ac08e6e7f4fddec88794f3594708513d';
 
     function normalizePaisFolder(folder) {
       if (!folder || !String(folder).trim()) return 'Otros';
@@ -1155,31 +1658,27 @@
       }
       if (typeof w.fetch !== 'function') return Promise.resolve([]);
 
-      var headers = getEpicAccessHeaders({
-        'Accept': 'application/json',
-        'X-Cred': PORTAL_CRED,
-        'X-Pantalla': 'tele',
-        'X-Ap': '1.0'
-      });
-
       var deadMap = w.__xeDeadUrls || (w.__xeDeadUrls = {});
 
-      return epicFetch('https://playlatam.site/canales?pais=ALL', 'GET', headers, 10000)
-        .then(function (payload) {
-          var arr = Array.isArray(payload) ? payload : (payload && (payload.canales || payload.data)) || [];
+      return fetchSharedPortalCanalesPayload()
+        .then(function (arr) {
           var list = [];
-          for (var i = 0; i < arr.length; i++) {
+          for (var i = 0; i < (arr || []).length; i++) {
             var c = arr[i] || {};
-            if (!c.name || !c.url) continue;
+            var chNameRaw = String(c.name || c.nombre || c.title || '').trim();
+            if (!chNameRaw || !c.url) continue;
             if (c.abre === false || c.sin_nombre) continue;
-            if (/^apareci[oó]\s+al\s+abrir/i.test(String(c.name || '').trim())) continue;
+            if (/^apareci[oó]\s+al\s+abrir/i.test(chNameRaw)) continue;
             if (/^(caido|apagado|offline|dead|inactivo|error|0)$/i.test(String(c.estado || '').trim())) continue;
             if (typeof c.opacidad === 'number' && c.opacidad > 0 && c.opacidad < 0.5) continue;
             var mainUrl = String(c.url || '').trim();
+            if (/\/perelman\/[^/?#]+$/i.test(mainUrl) && !/\.m3u8(\?|#|$)/i.test(mainUrl)) {
+              mainUrl += '.m3u8';
+            }
             if (isPortalDashOrDead(mainUrl, c.cdn)) continue;
-            var isHighlightVod = /highlight|fifa\+/i.test(String(c.name || '') + ' ' + String(c.folder || '') + ' ' + String(c.seccion || ''));
+            var isHighlightVod = /highlight|fifa\+/i.test(chNameRaw + ' ' + String(c.folder || c.pais || '') + ' ' + String(c.seccion || ''));
             if (isHighlightVod) continue;
-            if (/\bvs\b/i.test(String(c.name || '')) && !/^\s*TV\s+/i.test(String(c.name || ''))) {
+            if (/\bvs\b/i.test(chNameRaw) && !/^\s*TV\s+/i.test(chNameRaw)) {
               var cDateStr = String(c.date || c.fecha || '').trim();
               if (!cDateStr) continue;
               var cDateMs = Date.parse(cDateStr);
@@ -1187,9 +1686,16 @@
             }
             var respaldosRaw = Array.isArray(c.respaldos) ? c.respaldos : [];
             var backupUrls = [];
+            if (/^https:\/\/playlatam\.site\/perelman\//i.test(mainUrl)) {
+              var mirrorPerelman = mainUrl.replace(/^https:\/\/playlatam\.site/i, 'https://api.entrada-sur.workers.dev');
+              if (!deadMap[mirrorPerelman]) backupUrls.push(mirrorPerelman);
+            }
             for (var ri = 0; ri < respaldosRaw.length; ri++) {
               var rItem = respaldosRaw[ri];
               var rUrl = String((rItem && typeof rItem === 'object') ? (rItem.url || rItem.link || rItem.stream || '') : (rItem || '')).trim();
+              if (/\/perelman\/[^/?#]+$/i.test(rUrl) && !/\.m3u8(\?|#|$)/i.test(rUrl)) {
+                rUrl += '.m3u8';
+              }
               var rCdn = (rItem && typeof rItem === 'object') ? rItem.cdn : c.cdn;
               if (isPortalDashOrDead(rUrl, rCdn)) continue;
               if (deadMap[rUrl]) continue;
@@ -1199,24 +1705,26 @@
               if (!backupUrls.length) continue;
               mainUrl = backupUrls.shift();
             }
-            var isEv = isPortalEvento(c.folder, c.seccion);
-            var folderName = normalizePaisFolder(c.folder);
-            var isHighlightVod = /highlight/i.test(String(c.name || '') + ' ' + String(c.folder || ''));
-            var isSp = (!isHighlightVod && isEv) || /deporte|sport|futbol|f[uú]tbol|espn|fox\s*sport|directv|dsports|tnt\s*sport|tyc|win\s*sport|tudn|dazn|bein|gol\s*peru|liga\s*1|l1\s*max|ufc|nba|mlb|nfl|f1|formula\s*1|motogp|mls|liga\s*mx|premier|laliga/i.test((c.folder || '') + ' ' + (c.seccion || '') + ' ' + (c.name || ''));
+            var rawFolder = c.folder || c.pais || c.categoryName || '';
+            var isEv = isPortalEvento(rawFolder, c.seccion);
+            var folderName = normalizePaisFolder(rawFolder);
+            var isSp = (!isHighlightVod && isEv) || /deporte|sport|futbol|f[uú]tbol|espn|fox\s*sport|directv|dsports|tnt\s*sport|tyc|win\s*sport|tudn|dazn|bein|gol\s*peru|liga\s*1|l1\s*max|ufc|nba|mlb|nfl|f1|formula\s*1|motogp|mls|liga\s*mx|premier|laliga/i.test(rawFolder + ' ' + (c.seccion || '') + ' ' + chNameRaw);
             var rawLogo = String(c.logo || c.img || '').trim();
             var logoUrl = rawLogo
               ? (rawLogo.indexOf('http') === 0 ? rawLogo : ('https://playlatam.site' + (rawLogo.charAt(0) === '/' ? '' : '/') + rawLogo))
               : '';
+            var cleanDisplayName = chNameRaw.replace(/\s*·\s*[^·]+$/, '').trim() || chNameRaw;
             list.push({
-              name: c.name,
-              nome: c.name,
+              id: c.id || '',
+              name: cleanDisplayName,
+              nome: cleanDisplayName,
               url: mainUrl,
               backupUrls: backupUrls,
-              prioridad: !!c.prioridad,
+              prioridad: !!c.prioridad || c.fuente === 'perelman' || c.cocina === 'perelman',
               logo: logoUrl,
               folder: folderName,
-              fuente: 'portal',
-              fonte: 'portal',
+              fuente: c.fuente || 'portal',
+              fonte: c.fuente || 'portal',
               categoria: isEv ? 'epic_events' : 'epic_247',
               active: true,
               isSports: isSp,
@@ -1228,8 +1736,10 @@
               mode: c.mode || 'directo'
             });
           }
-          w.__xePortalCache = list;
-          w.__xePortalCacheTs = Date.now();
+          if (list.length) {
+            w.__xePortalCache = list;
+            w.__xePortalCacheTs = Date.now();
+          }
           return list;
         }).catch(function (e) {
           if (w.console && w.console.warn) w.console.warn('[portal] fallo:', e && e.message);
@@ -2408,23 +2918,23 @@
         return resolveDirectClientEmbed(u.replace(/^embed:\/\//i, ''), 4);
       }
       if (!/^https?:\/\//i.test(u)) return Promise.reject(new Error('URL inválida'));
-      if (/\/perelman\/[^/?#]+$/i.test(u) && /playlatam\.site|epictvparaiphone\.top/i.test(u)) {
+      if (/\/perelman\/[^/?#]+$/i.test(u) && /playlatam\.site|epictvparaiphone\.top|api\.entrada-sur\.workers\.dev/i.test(u)) {
         u = u.replace(/^https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
         if (!/\.m3u8(\?|#|$)/i.test(u)) u += '.m3u8';
       }
       if (/\.m3u8(\?|#|$)/i.test(u) || isEpicStreamProxyUrl(u)) {
         var cleanDirect = u.replace(/#mpegurl$/i, '');
-        if (/epictvparaiphone\.top|playlatam\.site/i.test(cleanDirect) || isEpicStreamProxyUrl(cleanDirect)) {
-          var h = getEpicAccessHeaders(baseHdrs);
-          return Promise.resolve({ url: cleanDirect, headers: h, isPulsera: true });
+        if (/epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev/i.test(cleanDirect) || isEpicStreamProxyUrl(cleanDirect)) {
+          return ensureEpicAccessHeaders(baseHdrs, { ap: getEpicApId() || rotateEpicApId() }).then(function (h) {
+            return { url: cleanDirect, headers: h, isPulsera: true };
+          });
         }
         return Promise.resolve({ url: cleanDirect, headers: baseHdrs });
       }
       var tryServerResolve = function () {
-        return fetchEpicTokenFresh().then(function (tok) {
+        var apSess = getEpicApId() || rotateEpicApId();
+        return ensureEpicAccessHeaders({ 'Accept': 'application/json' }, { ap: apSess }).then(function (rHdrs) {
           var apiUrl = 'https://playlatam.site/resolve?url=' + encodeURIComponent(u) + '&navegador=1';
-          var rHdrs = getEpicAccessHeaders({ 'Accept': 'application/json' });
-          if (tok) rHdrs['X-Pulsera'] = tok;
           return epicFetch(apiUrl, 'GET', rHdrs, 8000).then(function (res) {
             var st = res && typeof res.stream === 'string' ? res.stream.trim() : '';
             if (!/^https?:\/\//i.test(st)) throw new Error((res && res.error) || 'Sin stream');
@@ -2438,7 +2948,7 @@
               if (om && om[1]) hdrs.Origin = om[1];
             }
             if (/epictvparaiphone\.top|playlatam\.site/i.test(st)) {
-              hdrs['X-Pulsera'] = tok;
+              hdrs = getEpicAccessHeaders(hdrs, { ap: apSess });
             }
             return { url: st, headers: Object.keys(hdrs).length ? hdrs : null };
           });
@@ -2453,6 +2963,15 @@
     }
 
     w.XuperEpicSports = {
+      getAparatoId: getPortalAparatoId,
+      getFirmaSig: getEpicFirmaSig,
+      ensureCred: ensureEpicCred,
+      renewCredOn401: renewCredOn401,
+      rotateApId: rotateEpicApId,
+      getDeviceProfile: getEpicDeviceProfile,
+      getPaString: getEpicPaString,
+      buildMenuUrl: buildEpicMenuUrl,
+      buildCanalesUrl: buildEpicCanalesUrl,
       getPulseraToken: fetchEpicTokenFresh,
       getCachedToken: getEpicTokenCached,
       resolveCandidate: resolveEpicMenuCandidate,
@@ -2463,6 +2982,10 @@
       fetchEspnChannels: fetchUnifiedEspnChannels,
       fetchCountryS1Channels: fetchCountryS1Channels
     };
+
+    if (method === '__initEpic') {
+      return callback(null, { returnValue: true });
+    }
 
     function parseM3uPlaylist(rawText, sourceUrl) {
       var lines = String(rawText || '').split(/\r?\n/);
@@ -2864,14 +3387,16 @@
       }
 
       var liveTicket = (w.__xuperLiveResolveTicket = (w.__xuperLiveResolveTicket || 0) + 1);
-      var pulseraRe = /epictvparaiphone\.top|playlatam\.site|(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev|tizenxuper-tv\.pages\.dev)\/stream-proxy/i;
-      var isEpicMenuItem = !!(menuEntry && menuEntry.isEpicMenu) || /^(epicm-|epic247-|espn-|epic-|portal-)/i.test(String(params.channelCode || ''));
+      var playAp = rotateEpicApId();
+      bumpEpicPaTouch();
+      var pulseraRe = /epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev|(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev|tizenxuper-tv\.pages\.dev)\/stream-proxy/i;
+      var isEpicMenuItem = !!(menuEntry && menuEntry.isEpicMenu) || /^(epicm-|epic247-|espn-|wiwy-espn-|epic-|portal-)/i.test(String(params.channelCode || ''));
       if (isEpicMenuItem) {
         if (backupCandidates.length > 12) backupCandidates = backupCandidates.slice(0, 12);
         var verifyMenuManifest = function (checkUrl, checkHdrs) {
           if (typeof w.fetch !== 'function') return Promise.resolve({ url: checkUrl });
           var relay = w.XuperRelay;
-          var fetchOnce = function (useRelay, overrideUrl, overrideHdrs) {
+          var fetchOnce = function (useRelay, overrideUrl, overrideHdrs, retry401) {
             var targetU = overrideUrl || checkUrl;
             var uReq = targetU;
             var hReq = Object.assign({}, overrideHdrs !== undefined ? overrideHdrs : (checkHdrs || {}));
@@ -2893,6 +3418,12 @@
               signal: ctrl ? ctrl.signal : undefined
             }).then(function (resp) {
               if (tm) clearTimeout(tm);
+              if (resp && resp.status === 401 && !retry401 && !useRelay && isPlaylatamHost(targetU) && hReq['X-Cred']) {
+                return renewCredOn401(checkHdrs).then(function (newHdrs) {
+                  checkHdrs = newHdrs;
+                  return fetchOnce(useRelay, targetU, newHdrs, true);
+                });
+              }
               if (!resp || !resp.ok) throw new Error('HTTP ' + (resp ? resp.status : 0));
               return resp.text().then(function (txt) {
                 if (!/#EXTM3U/i.test(txt || '')) throw new Error('Manifiesto no válido');
@@ -2921,10 +3452,10 @@
                       }
                     }
                   }
-                  if (/^https?:\/\//i.test(lastSegUrl) && !isEpicStreamProxyUrl(targetU)) {
+                  if (/^https?:\/\//i.test(lastSegUrl) && !isEpicStreamProxyUrl(targetU) && !pulseraRe.test(targetU) && !/tiktokcdn/i.test(lastSegUrl)) {
                     var sCtrl = typeof AbortController === 'function' ? new AbortController() : null;
                     var sTm = sCtrl ? setTimeout(function () { try { sCtrl.abort(); } catch (_) {} }, 2500) : null;
-                    var sHdrs = /epictvparaiphone\.top|playlatam\.site/i.test(lastSegUrl) ? Object.assign({}, checkHdrs || {}) : {};
+                    var sHdrs = /epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev/i.test(lastSegUrl) ? Object.assign({}, checkHdrs || {}) : {};
                     sHdrs.Range = 'bytes=0-31';
                     return w.fetch(lastSegUrl, {
                       method: 'GET',
@@ -2949,7 +3480,7 @@
               throw err;
             });
           };
-          var hasCustomHdrs = !!(checkHdrs && (checkHdrs.Referer || checkHdrs.Origin || checkHdrs['X-Pulsera'] || checkHdrs['X-Llave']));
+          var hasCustomHdrs = !!(checkHdrs && (checkHdrs.Referer || checkHdrs.Origin || checkHdrs['X-Cred'] || checkHdrs['X-Pulsera'] || checkHdrs['X-Llave']));
           var canDirectAvFallback = !pulseraRe.test(checkUrl) && !!(w.CactusAVPlay && w.CactusAVPlay.available());
           var allowBypassIfBrowserBlocked = function (err) {
             var msg = String(err && err.message || '');
@@ -2960,15 +3491,23 @@
             }
             throw err;
           };
-          if (/epictvparaiphone\.top|playlatam\.site/i.test(checkUrl) && /\/perelman\//i.test(checkUrl) && !isEpicStreamProxyUrl(checkUrl)) {
+          if (/epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev/i.test(checkUrl) && /\/perelman\//i.test(checkUrl) && !isEpicStreamProxyUrl(checkUrl)) {
             var canonPerelman = String(checkUrl).replace(/^https?:\/\/epictvparaiphone\.top/i, 'https://playlatam.site');
-            var proxyU = buildEpicStreamProxyUrl(canonPerelman);
-            return fetchOnce(false, proxyU, {}).catch(function () {
+            var mirrorPerelman = canonPerelman.replace(/^https:\/\/playlatam\.site/i, 'https://api.entrada-sur.workers.dev');
+            if (isTizen3Device()) {
+              var proxyU = buildEpicStreamProxyUrl(canonPerelman);
+              return fetchOnce(false, proxyU, {}).catch(function () {
+                return fetchOnce(false, canonPerelman, checkHdrs);
+              });
+            }
+            return ensureEpicUserAgent().then(function () {
               return fetchOnce(false, canonPerelman, checkHdrs);
+            }).catch(function () {
+              return fetchOnce(false, mirrorPerelman, checkHdrs);
             });
           }
           return fetchOnce(false).catch(function (err) {
-            if (/epictvparaiphone\.top|playlatam\.site/i.test(checkUrl) && !isEpicStreamProxyUrl(checkUrl)) {
+            if (isTizen3Device() && /epictvparaiphone\.top|playlatam\.site/i.test(checkUrl) && !isEpicStreamProxyUrl(checkUrl)) {
               var proxyU = buildEpicStreamProxyUrl(checkUrl);
               return fetchOnce(false, proxyU, {}).catch(function (proxyErr) {
                 throw proxyErr;
@@ -3046,11 +3585,11 @@
                 if (allResolvedBackups.indexOf(bUrl) === -1) allResolvedBackups.push(bUrl);
               }
               if (isPulseraResolved) {
-                rHdrs = getEpicAccessHeaders(rHdrs);
-              } else if (!rHdrs['X-Pulsera']) {
+                rHdrs = getEpicAccessHeaders(rHdrs, { ap: playAp });
+              } else if (!rHdrs['X-Cred'] && !rHdrs['X-Pulsera']) {
                 for (var pi2 = 0; pi2 < allResolvedBackups.length; pi2++) {
                   if (pulseraRe.test(allResolvedBackups[pi2])) {
-                    rHdrs = getEpicAccessHeaders(rHdrs);
+                    rHdrs = getEpicAccessHeaders(rHdrs, { ap: playAp });
                     break;
                   }
                 }
@@ -3105,7 +3644,7 @@
           }).catch(function () {
             var failedCand = backupCandidates[idx];
             var failedUrl = String((failedCand && typeof failedCand === 'object') ? (failedCand.url || '') : (failedCand || '')).trim();
-            if (failedUrl && !/epictvparaiphone\.top\/perelman\//i.test(failedUrl)) {
+            if (failedUrl && !/(?:epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev)\/perelman\//i.test(failedUrl)) {
               w.__xeDeadUrls = w.__xeDeadUrls || {};
               w.__xeDeadUrls[failedUrl] = true;
             }
@@ -3137,9 +3676,17 @@
           if (cIdx === 0) primaryDirect = cand;
         }
         if (/playlatam\.site\/perelman\//i.test(cand) && !isEpicStreamProxyUrl(cand)) {
-          var pxFirst = buildEpicStreamProxyUrl(cand);
-          if (expandedCandidates.indexOf(pxFirst) === -1) expandedCandidates.push(pxFirst);
-          if (cIdx === 0) primaryDirect = pxFirst;
+          if (isTizen3Device()) {
+            var pxFirst = buildEpicStreamProxyUrl(cand);
+            if (expandedCandidates.indexOf(pxFirst) === -1) expandedCandidates.push(pxFirst);
+            if (cIdx === 0) primaryDirect = pxFirst;
+          } else {
+            if (!(isPlaylatamHost(cand) && isPortalCredExpired()) && expandedCandidates.indexOf(cand) === -1) {
+              expandedCandidates.push(cand);
+            }
+            var mirrorCand = cand.replace(/^https:\/\/playlatam\.site/i, 'https://api.entrada-sur.workers.dev');
+            if (expandedCandidates.indexOf(mirrorCand) === -1) expandedCandidates.push(mirrorCand);
+          }
         }
         if (!(isPlaylatamHost(cand) && isPortalCredExpired()) && expandedCandidates.indexOf(cand) === -1) {
           expandedCandidates.push(cand);
@@ -3151,7 +3698,7 @@
         primaryDirect = backupCandidates[0];
       }
       var anyNeedsPulsera = primaryNeedsPulsera || backupCandidates.some(function (u) { return pulseraRe.test(u); });
-      if (anyNeedsPulsera) {
+      if (anyNeedsPulsera && isTizen3Device()) {
         for (var pi = 0; pi < backupCandidates.length; pi++) {
           var pCandU = backupCandidates[pi];
           if (/epictvparaiphone\.top|playlatam\.site/i.test(pCandU) && !isEpicStreamProxyUrl(pCandU)) {
@@ -3162,7 +3709,7 @@
         backupCandidates = expandedCandidates;
       }
       var hdrPromise = anyNeedsPulsera
-        ? Promise.resolve(getEpicAccessHeaders({}))
+        ? ensureEpicAccessHeaders({}, { ap: playAp })
         : Promise.resolve(null);
 
       hdrPromise.then(function (extraHdrs) {
@@ -4280,6 +4827,35 @@
     fitResolution: fitResolution,
     clearCaches: function() { clearAllCaches(true); }
   };
+
+  try {
+    setTimeout(function () {
+      try {
+        var ua0 = w.__xeOrigUserAgent || (typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '');
+        if (ua0 && !w.__xeOrigUserAgent) w.__xeOrigUserAgent = ua0;
+        if (!w.XuperEpicSports) serviceCall('__initEpic', {}, function () {});
+        if (!/Tizen\s*3\.|AppleWebKit\/538/i.test(ua0) &&
+            typeof navigator !== 'undefined' &&
+            w.tizen && w.tizen.websetting && typeof w.tizen.websetting.setUserAgentString === 'function') {
+          var bootEpicUa = (w.XuperEpicSports && typeof w.XuperEpicSports.getDeviceProfile === 'function')
+            ? w.XuperEpicSports.getDeviceProfile().ua
+            : 'Dalvik/2.1.0 (Linux; U; Android 14; SM-A546E Build/UP1A.231005.007)';
+          var runCredWarmup = function () {
+            try {
+              if (w.XuperEpicSports && typeof w.XuperEpicSports.ensureCred === 'function') {
+                w.XuperEpicSports.ensureCred(false).catch(function () {});
+              }
+            } catch (_) {}
+          };
+          if (navigator.userAgent === bootEpicUa) {
+            runCredWarmup();
+          } else {
+            w.tizen.websetting.setUserAgentString(bootEpicUa, runCredWarmup, function () {});
+          }
+        }
+      } catch (_) {}
+    }, 150);
+  } catch (_) {}
 
   try {
     setTimeout(function () {

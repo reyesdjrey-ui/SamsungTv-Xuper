@@ -618,6 +618,7 @@
     return input;
   }
 
+  var _frozenSeqMap = {};
   function createPngStripLoader(HlsCtor) {
     if (!HlsCtor || !HlsCtor.DefaultConfig || !HlsCtor.DefaultConfig.loader) return null;
     var BaseLoader = HlsCtor.DefaultConfig.loader;
@@ -661,25 +662,44 @@
               if (response.data instanceof ArrayBuffer || response.data instanceof Uint8Array) {
                 response.data = stripPngWrapper(response.data);
               } else if (typeof response.data === 'string' && response.data.indexOf('#EXTM3U') !== -1 &&
-                         response.data.indexOf('#EXT-X-ENDLIST') === -1 &&
-                         (/epictvparaiphone\.top|playlatam\.site|\/perelman\//i.test(String(response.url || (context && (context._xeOrigUrl || context.url)) || '')) ||
-                          (_g.__xuperCurrentStreamMeta && _g.__xuperCurrentStreamMeta.headers && (_g.__xuperCurrentStreamMeta.headers['X-Pulsera'] || _g.__xuperCurrentStreamMeta.headers['X-Cookie'])))) {
-                // Evita seek preciso en mitad de segmento al abrir en vivo y amplía el colchón HOLD-BACK
-                var m3uTxt = response.data.replace(/#EXT-X-START:[^\r\n]*(\r?\n)?/g, '');
-                var tdMatch = /#EXT-X-TARGETDURATION:\s*(\d+)/i.exec(m3uTxt);
-                var targetDur = tdMatch ? (parseInt(tdMatch[1], 10) || 5) : 5;
-                var holdBackSec = Math.max(30, Math.min(36, targetDur * 5.5));
-                var hbStr = holdBackSec.toFixed(1);
-                if (m3uTxt.indexOf('#EXT-X-SERVER-CONTROL:') !== -1) {
-                  if (/(^|[,:])HOLD-BACK=[\d.]+/i.test(m3uTxt)) {
-                    m3uTxt = m3uTxt.replace(/(^|[,:])HOLD-BACK=[\d.]+/gi, '$1HOLD-BACK=' + hbStr);
+                         response.data.indexOf('#EXT-X-ENDLIST') === -1) {
+                var trackKey = String((context && (context._xeOrigUrl || context.url)) || response.url || '').replace(/([?&])(t|d|s)=[^&]*/gi, '$1');
+                var seqM = /#EXT-X-MEDIA-SEQUENCE:\s*(\d+)/i.exec(response.data);
+                var segLines = response.data.split(/\r?\n/).filter(function(ln) { return ln && ln.charAt(0) !== '#'; });
+                var lastSeg = segLines.length ? segLines[segLines.length - 1].trim() : '';
+                if (trackKey && (seqM || lastSeg)) {
+                  var sigVal = (seqM ? seqM[1] : '') + '|' + lastSeg;
+                  var nowMs = Date.now();
+                  var prevRec = _frozenSeqMap[trackKey];
+                  if (prevRec && prevRec.sig === sigVal) {
+                    prevRec.hits += 1;
+                    if (prevRec.hits >= 4 && (nowMs - prevRec.firstTs) >= 16000 && typeof callbacks.onError === 'function') {
+                      delete _frozenSeqMap[trackKey];
+                      return callbacks.onError({ code: 503, text: 'Frozen HLS sequence' }, context, null, stats);
+                    }
                   } else {
-                    m3uTxt = m3uTxt.replace(/(#EXT-X-SERVER-CONTROL:[^\r\n]*)/i, '$1,HOLD-BACK=' + hbStr);
+                    _frozenSeqMap[trackKey] = { sig: sigVal, firstTs: nowMs, hits: 1 };
                   }
-                } else {
-                  m3uTxt = m3uTxt.replace(/(#EXTM3U[^\r\n]*)/i, '$1\n#EXT-X-SERVER-CONTROL:HOLD-BACK=' + hbStr);
                 }
-                response.data = m3uTxt;
+                if (/epictvparaiphone\.top|playlatam\.site|\/perelman\//i.test(String(response.url || (context && (context._xeOrigUrl || context.url)) || '')) ||
+                    (_g.__xuperCurrentStreamMeta && _g.__xuperCurrentStreamMeta.headers && (_g.__xuperCurrentStreamMeta.headers['X-Cred'] || _g.__xuperCurrentStreamMeta.headers['X-Pulsera'] || _g.__xuperCurrentStreamMeta.headers['X-Cookie']))) {
+                  // Evita seek preciso en mitad de segmento al abrir en vivo y amplía el colchón HOLD-BACK
+                  var m3uTxt = response.data.replace(/#EXT-X-START:[^\r\n]*(\r?\n)?/g, '');
+                  var tdMatch = /#EXT-X-TARGETDURATION:\s*(\d+)/i.exec(m3uTxt);
+                  var targetDur = tdMatch ? (parseInt(tdMatch[1], 10) || 5) : 5;
+                  var holdBackSec = Math.max(30, Math.min(36, targetDur * 5.5));
+                  var hbStr = holdBackSec.toFixed(1);
+                  if (m3uTxt.indexOf('#EXT-X-SERVER-CONTROL:') !== -1) {
+                    if (/(^|[,:])HOLD-BACK=[\d.]+/i.test(m3uTxt)) {
+                      m3uTxt = m3uTxt.replace(/(^|[,:])HOLD-BACK=[\d.]+/gi, '$1HOLD-BACK=' + hbStr);
+                    } else {
+                      m3uTxt = m3uTxt.replace(/(#EXT-X-SERVER-CONTROL:[^\r\n]*)/i, '$1,HOLD-BACK=' + hbStr);
+                    }
+                  } else {
+                    m3uTxt = m3uTxt.replace(/(#EXTM3U[^\r\n]*)/i, '$1\n#EXT-X-SERVER-CONTROL:HOLD-BACK=' + hbStr);
+                  }
+                  response.data = m3uTxt;
+                }
               }
             }
           } catch (_) {}
@@ -741,7 +761,7 @@
       var reqH = {};
       var uStr = String(url || '');
       var rBase = (_g.XuperRelay && typeof _g.XuperRelay.relayBase === 'function') ? _g.XuperRelay.relayBase() : '';
-      var isRelayTarget = /workers\.dev/i.test(uStr) || (rBase && uStr.indexOf(rBase) === 0);
+      var isRelayTarget = (/workers\.dev/i.test(uStr) && !/api\.entrada-sur\.workers\.dev/i.test(uStr)) || (rBase && uStr.indexOf(rBase) === 0);
       if (hdrs) {
         if (isRelayTarget) {
           for (var hk in hdrs) {
@@ -752,9 +772,12 @@
           if (hdrs['X-Pulsera'] && !reqH['X-Cookie']) {
             reqH['X-Cookie'] = '__Host-pulsera=' + hdrs['X-Pulsera'];
           }
-        } else if (/epictvparaiphone\.top|playlatam\.site/i.test(uStr)) {
+        } else if (/epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev/i.test(uStr)) {
           if (hdrs['X-Cred']) reqH['X-Cred'] = hdrs['X-Cred'];
-          if (hdrs['X-Pulsera']) reqH['X-Pulsera'] = hdrs['X-Pulsera'];
+          else if (hdrs['X-Llave']) reqH['X-Llave'] = hdrs['X-Llave'];
+          if (hdrs['X-Aparato']) reqH['X-Aparato'] = hdrs['X-Aparato'];
+          if (hdrs['X-Ap']) reqH['X-Ap'] = hdrs['X-Ap'];
+          if (!hdrs['X-Cred'] && hdrs['X-Pulsera']) reqH['X-Pulsera'] = hdrs['X-Pulsera'];
         }
       }
       return fetch(url, {
@@ -764,6 +787,15 @@
         cache: 'no-store',
         redirect: 'follow'
       }).then(function(r) {
+        if (r && r.status === 401 && !st._retried401 && !isRelayTarget &&
+            /epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev/i.test(uStr) &&
+            _g.XuperEpicSports && typeof _g.XuperEpicSports.renewCredOn401 === 'function') {
+          st._retried401 = true;
+          return _g.XuperEpicSports.renewCredOn401(hdrs).then(function(newHdrs) {
+            if (newHdrs) hdrs = newHdrs;
+            return req(url, asBin);
+          });
+        }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return asBin ? r.arrayBuffer() : r.text();
       });

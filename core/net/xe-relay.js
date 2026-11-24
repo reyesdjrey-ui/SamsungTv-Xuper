@@ -76,14 +76,19 @@
 
   function getDuid(device) {
     if (device && device.sn) return String(device.sn);
+    var p = "cactus.samsung.v101.device.";
     try {
       if (typeof localStorage !== "undefined") {
-        var p = "cactus.samsung.v101.device.";
-        var v = localStorage.getItem(p + "xuper.sn") || localStorage.getItem(p + "xuper.installationId") || localStorage.getItem("xuper.sn") || localStorage.getItem("xuper.installationId");
+        var v = localStorage.getItem(p + "xuper.sn") || localStorage.getItem(p + "xuper.installationId") || localStorage.getItem("xuper.sn") || localStorage.getItem("xuper.installationId") || localStorage.getItem("xuper_relay_duid");
         if (v) return String(v);
       }
     } catch (_) {}
-    return "tizen-tv-guest";
+    var rnd = "tv-";
+    for (var i = 0; i < 12; i++) rnd += Math.floor(Math.random() * 16).toString(16);
+    try {
+      if (typeof localStorage !== "undefined") localStorage.setItem("xuper_relay_duid", rnd);
+    } catch (_) {}
+    return rnd;
   }
 
   function parseHostAndPath(rawUrl) {

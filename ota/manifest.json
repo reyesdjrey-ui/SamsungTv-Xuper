@@ -1,10 +1,10 @@
 {
-  "rev": 17,
-  "version": "3.0.4",
+  "rev": 19,
+  "version": "3.0.5",
   "minBaseRev": 1,
-  "bundle": "bundle-17.json",
-  "sha256": "033256a311772cb0a128afc22c9bfff377831ec95c0bdc303bc33817d8d4f8c4",
-  "sig": "c1f1c353d466c4a0f17a0a9ec017bdc9",
-  "notes": "v3.0.4: PlayLatam vía api.xupereclectic.xyz + Oracle/Nginx micro-caché, firma HMAC-MD5 sin preflight y colchón HLS anti-cortes",
-  "updatedAt": "2026-11-22T18:25:03.273Z"
+  "bundle": "bundle-19.json",
+  "sha256": "83c642a1d7880c42aa205eccdfcbde79cb7d1d2ebffd2e0d4232b2081e04ea97",
+  "sig": "cf5e40c9aec3fe97c64f981efed44699",
+  "notes": "v3.0.5: Epic+ v7.34 (v186) con perfil Android diverso por TV, X-Cred auto-registrado, firma HMAC fs, X-Ap por sesion y renovacion 401",
+  "updatedAt": "2026-11-24T23:51:35.737Z"
 }
