@@ -1,10 +1,10 @@
 {
-  "rev": 38,
-  "version": "3.0.25-t3exp",
+  "rev": 39,
+  "version": "3.0.26-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-38.json",
-  "sha256": "900b12d47cd37a6a626775352cf7fd3161a67bee91a9880e0b1b78d785e74d5b",
-  "sig": "3e2dc1d349894540fd4b3450919415e8",
-  "notes": "Restaurar audio nativo Hls.js dual-SB en TVs reales Tizen 2.3/2.4, fix DOM Exception 11 y wrapPortalRequest SLB IPv6",
-  "updatedAt": "2026-11-23T23:18:51.557Z"
+  "bundle": "bundle-39.json",
+  "sha256": "ce25f30955d92638b12cff6b5d0ee00cd0a84025cc33210c28a07c3c3f65c142",
+  "sig": "b8b8f09d2159e06bd2c92c4adce90440",
+  "notes": "Anti-pausa 10m LiveTV + auto-renew SLB, y suspension limpia 25s + single-seek VOD AVPlay",
+  "updatedAt": "2026-11-24T02:02:53.478Z"
 }
