@@ -1,10 +1,10 @@
 {
-  "rev": 39,
-  "version": "3.0.26-t3exp",
+  "rev": 40,
+  "version": "3.0.27-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-39.json",
-  "sha256": "ce25f30955d92638b12cff6b5d0ee00cd0a84025cc33210c28a07c3c3f65c142",
-  "sig": "b8b8f09d2159e06bd2c92c4adce90440",
-  "notes": "Anti-pausa 10m LiveTV + auto-renew SLB, y suspension limpia 25s + single-seek VOD AVPlay",
-  "updatedAt": "2026-11-24T02:02:53.478Z"
+  "bundle": "bundle-40.json",
+  "sha256": "ecc5ba2f35950d8ec043ca6e2499d2096928cc5e5c63a4e2b1d9287f83cc996d",
+  "sig": "5e947f057334bbd7ec8d06f209239871",
+  "notes": "Restaurar arranque VOD rev 36 sin trabas, auto-renew SLB 15m en segundo plano y poda segCache en LiveTV",
+  "updatedAt": "2026-11-24T04:19:22.954Z"
 }
