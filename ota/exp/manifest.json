@@ -1,10 +1,10 @@
 {
-  "rev": 16,
+  "rev": 17,
   "version": "3.0.3-exp",
   "minBaseRev": 1,
-  "bundle": "bundle-16.json",
-  "sha256": "e9c365718b064fc76406a1cc6147b0cc0a5712f363802299541873db090cbb83",
-  "sig": "2f5a5f889c31c0f872d8b414c186a1c6",
-  "notes": "exp rev 16: fix override CSS OTA en #player-channels (left:0, pills, title) sin subir a 3.0.4",
-  "updatedAt": "2026-11-21T22:06:35.439Z"
+  "bundle": "bundle-17.json",
+  "sha256": "e95948b90df7838be5a006acb1bf65f24a2d68351520b5bce877db10958e4f57",
+  "sig": "d7f8106325286232e72191c4ff04420d",
+  "notes": "exp rev 17: protocolo nativo Epic+ v7.34 (v186) auto-registro X-Cred, firma HMAC fs y respaldos oficiales",
+  "updatedAt": "2026-11-24T10:21:18.802Z"
 }
