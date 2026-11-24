@@ -1,10 +1,10 @@
 {
-  "rev": 17,
+  "rev": 18,
   "version": "3.0.3-exp",
   "minBaseRev": 1,
-  "bundle": "bundle-17.json",
-  "sha256": "e95948b90df7838be5a006acb1bf65f24a2d68351520b5bce877db10958e4f57",
-  "sig": "d7f8106325286232e72191c4ff04420d",
-  "notes": "exp rev 17: protocolo nativo Epic+ v7.34 (v186) auto-registro X-Cred, firma HMAC fs y respaldos oficiales",
-  "updatedAt": "2026-11-24T10:21:18.802Z"
+  "bundle": "bundle-18.json",
+  "sha256": "4ef521ae922c6d7c8abe1438d71627ed51c2af0677c88b3dda2915ce208bdb65",
+  "sig": "07049f73150a8223f201e55d61e45abe",
+  "notes": "exp rev 18: arranque rapido Tizen 4.0 sin sonda Range 206 en tiktokcdn y warmup UA/X-Cred",
+  "updatedAt": "2026-11-24T22:52:42.667Z"
 }

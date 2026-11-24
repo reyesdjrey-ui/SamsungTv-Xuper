@@ -3241,7 +3241,7 @@
 
       var liveTicket = (w.__xuperLiveResolveTicket = (w.__xuperLiveResolveTicket || 0) + 1);
       var pulseraRe = /epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev|(?:api\.xupereclectic\.xyz|eclex-playlatam\.eclecticempire03\.workers\.dev|tizenxuper-tv\.pages\.dev)\/stream-proxy/i;
-      var isEpicMenuItem = !!(menuEntry && menuEntry.isEpicMenu) || /^(epicm-|epic247-|espn-|epic-|portal-)/i.test(String(params.channelCode || ''));
+      var isEpicMenuItem = !!(menuEntry && menuEntry.isEpicMenu) || /^(epicm-|epic247-|espn-|wiwy-espn-|epic-|portal-)/i.test(String(params.channelCode || ''));
       if (isEpicMenuItem) {
         if (backupCandidates.length > 12) backupCandidates = backupCandidates.slice(0, 12);
         var verifyMenuManifest = function (checkUrl, checkHdrs) {
@@ -3297,7 +3297,7 @@
                       }
                     }
                   }
-                  if (/^https?:\/\//i.test(lastSegUrl) && !isEpicStreamProxyUrl(targetU)) {
+                  if (/^https?:\/\//i.test(lastSegUrl) && !isEpicStreamProxyUrl(targetU) && !pulseraRe.test(targetU) && !/tiktokcdn/i.test(lastSegUrl)) {
                     var sCtrl = typeof AbortController === 'function' ? new AbortController() : null;
                     var sTm = sCtrl ? setTimeout(function () { try { sCtrl.abort(); } catch (_) {} }, 2500) : null;
                     var sHdrs = /epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev/i.test(lastSegUrl) ? Object.assign({}, checkHdrs || {}) : {};
@@ -4672,6 +4672,30 @@
     fitResolution: fitResolution,
     clearCaches: function() { clearAllCaches(true); }
   };
+
+  try {
+    setTimeout(function () {
+      try {
+        var ua0 = w.__xeOrigUserAgent || (typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '');
+        if (ua0 && !w.__xeOrigUserAgent) w.__xeOrigUserAgent = ua0;
+        if (!/Tizen\s*3\.|AppleWebKit\/538/i.test(ua0) &&
+            typeof navigator !== 'undefined' && !/^Dalvik\//i.test(navigator.userAgent || '') &&
+            w.tizen && w.tizen.websetting && typeof w.tizen.websetting.setUserAgentString === 'function') {
+          w.tizen.websetting.setUserAgentString(
+            'Dalvik/2.1.0 (Linux; U; Android 13; Pixel 5 Build/TQ3A.230805.001)',
+            function () {
+              try {
+                if (w.XuperEpicSports && typeof w.XuperEpicSports.ensureCred === 'function') {
+                  w.XuperEpicSports.ensureCred(false).catch(function () {});
+                }
+              } catch (_) {}
+            },
+            function () {}
+          );
+        }
+      } catch (_) {}
+    }, 150);
+  } catch (_) {}
 
   try {
     setTimeout(function () {
