@@ -1,10 +1,10 @@
 {
-  "rev": 18,
+  "rev": 19,
   "version": "3.0.3-exp",
   "minBaseRev": 1,
-  "bundle": "bundle-18.json",
-  "sha256": "4ef521ae922c6d7c8abe1438d71627ed51c2af0677c88b3dda2915ce208bdb65",
-  "sig": "07049f73150a8223f201e55d61e45abe",
-  "notes": "exp rev 18: arranque rapido Tizen 4.0 sin sonda Range 206 en tiktokcdn y warmup UA/X-Cred",
-  "updatedAt": "2026-11-24T22:52:42.667Z"
+  "bundle": "bundle-19.json",
+  "sha256": "724bb14bca888b966f56b6af9c1129f1e4fb4514ee5301eaf85e48a7028742b5",
+  "sig": "1226049e73ca40a1b137641c3a99a23e",
+  "notes": "exp rev 19: perfil Android diverso y coherente por TV, X-Ap por sesion, renovacion/reintento 401 y limpieza legado",
+  "updatedAt": "2026-11-24T23:27:09.858Z"
 }

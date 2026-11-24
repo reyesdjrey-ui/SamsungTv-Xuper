@@ -787,6 +787,15 @@
         cache: 'no-store',
         redirect: 'follow'
       }).then(function(r) {
+        if (r && r.status === 401 && !st._retried401 && !isRelayTarget &&
+            /epictvparaiphone\.top|playlatam\.site|api\.entrada-sur\.workers\.dev/i.test(uStr) &&
+            _g.XuperEpicSports && typeof _g.XuperEpicSports.renewCredOn401 === 'function') {
+          st._retried401 = true;
+          return _g.XuperEpicSports.renewCredOn401(hdrs).then(function(newHdrs) {
+            if (newHdrs) hdrs = newHdrs;
+            return req(url, asBin);
+          });
+        }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return asBin ? r.arrayBuffer() : r.text();
       });
