@@ -1,10 +1,10 @@
 {
-  "rev": 41,
-  "version": "3.0.28-t3exp",
+  "rev": 42,
+  "version": "3.0.29-t3exp",
   "minBaseRev": 1,
-  "bundle": "bundle-41.json",
-  "sha256": "263e37e579f32254615f721f1f937da64bafd401d77fa6a5ec6fce772b2060d3",
-  "sig": "2756245b2bad7d142f022dce2f5e7771",
-  "notes": "Desbloqueo proxy Espana getSlbInfo + restaurar buffers Hls.js 60/120 y waitPlaying de 2.3-2.4 en LiveTV",
-  "updatedAt": "2026-11-25T00:52:42.463Z"
+  "bundle": "bundle-42.json",
+  "sha256": "0eb386b739e3da234c2063ffe5cc48e21d02d1af4480bc75fcc98f71815e5329",
+  "sig": "1e25ecad48c1ef8cb27c50c483c40a5c",
+  "notes": "Fix 403 Host not allowed en CDN CFL, fix DOM Exception 11 via OTA en xe-env.js y destrabar SEC persistente",
+  "updatedAt": "2026-11-25T04:39:41.025Z"
 }
