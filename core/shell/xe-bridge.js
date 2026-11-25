@@ -3835,31 +3835,40 @@
 
       w.CactusDirect.connect().then(function (client) {
 
+        function normalizePortalImgUrl(url) {
+          if (!url) return '';
+          var s = String(url);
+          if (/^https?:\/\/[^\/]+\.xyz\/public\/images\//i.test(s)) {
+            return s.replace(/^https?:\/\/[^\/]+/i, 'https://joqotx.p27i1en9.com');
+          }
+          return s;
+        }
+
         function getPosterUrl(node) {
           if (!node) return '';
           var list = node.posterList || [];
           for (var j = 0; j < list.length; j++) {
-            if (list[j] && list[j].fileType === 'icon' && list[j].fileUrl) return list[j].fileUrl;
+            if (list[j] && list[j].fileType === 'icon' && list[j].fileUrl) return normalizePortalImgUrl(list[j].fileUrl);
           }
           for (var i = 0; i < list.length; i++) {
-            if (list[i] && list[i].fileType === 'poster' && list[i].fileUrl) return list[i].fileUrl;
+            if (list[i] && list[i].fileType === 'poster' && list[i].fileUrl) return normalizePortalImgUrl(list[i].fileUrl);
           }
           for (var k = 0; k < list.length; k++) {
-            if (list[k] && list[k].fileUrl) return list[k].fileUrl;
+            if (list[k] && list[k].fileUrl) return normalizePortalImgUrl(list[k].fileUrl);
           }
-          return node.posterUrl || node.poster || node.fileUrl || node.cover || node.imageUrl || node.landscape || '';
+          return normalizePortalImgUrl(node.posterUrl || node.poster || node.fileUrl || node.cover || node.imageUrl || node.landscape || '');
         }
 
         function getBackdropUrl(node) {
           if (!node) return '';
           var list = node.posterList || [];
           for (var i = 0; i < list.length; i++) {
-            if (list[i] && list[i].fileType === 'poster' && list[i].fileUrl) return list[i].fileUrl;
+            if (list[i] && list[i].fileType === 'poster' && list[i].fileUrl) return normalizePortalImgUrl(list[i].fileUrl);
           }
           for (var j = 0; j < list.length; j++) {
-            if (list[j] && list[j].fileType === 'stage' && list[j].fileUrl) return list[j].fileUrl;
+            if (list[j] && list[j].fileType === 'stage' && list[j].fileUrl) return normalizePortalImgUrl(list[j].fileUrl);
           }
-          return node.backdrop || node.landscape || '';
+          return normalizePortalImgUrl(node.backdrop || node.landscape || '');
         }
 
         if (method === 'home') {
